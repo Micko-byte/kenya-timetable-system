@@ -1,0 +1,233 @@
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { GraduationCap, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export const Header = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location]);
+
+  // Handle scroll shadow and hide/show header
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Show shadow when scrolled
+      setHasScrolled(currentScrollY > 0);
+      
+      // Hide header on scroll down, show on scroll up
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        // Scrolling down
+        setIsVisible(false);
+      } else {
+        // Scrolling up
+        setIsVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+    
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY]);
+
+  const isHomePage = location.pathname === "/";
+  const isSignUpPage = location.pathname === "/signup";
+  const isAuthPage = location.pathname === "/auth";
+
+  // Enroll button should be active only on signup page
+  const isEnrollActive = isSignUpPage;
+  // Login button should be active only on auth page
+  const isLoginActive = isAuthPage;
+
+  return (
+    <>
+      {/* Desktop & Mobile Header */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ${
+          hasScrolled ? "" : ""
+        }`}
+        style={{
+          padding: "1rem",
+          transform: isVisible ? "translateY(0)" : "translateY(-100%)",
+        }}
+      >
+        <div
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 rounded-full transition-all duration-300"
+          style={{
+            background: "rgba(3, 7, 18, 0.6)",
+            backdropFilter: "blur(12px)",
+            padding: "1rem 1.5rem",
+          }}
+        >
+          <div className="flex justify-between items-center">
+            {/* Logo - Left */}
+            <div
+              className="flex items-center gap-2 md:gap-3 cursor-pointer hover:opacity-80 transition-opacity duration-200"
+              onClick={() => navigate("/")}
+            >
+              <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-primary to-primary/80 rounded-full flex items-center justify-center flex-shrink-0">
+                <GraduationCap className="w-5 h-5 md:w-6 md:h-6 text-white" />
+              </div>
+              <span className="text-xl md:text-2xl font-bold text-white dark:text-white whitespace-nowrap">
+                ElimuTime
+              </span>
+            </div>
+
+            {/* Desktop Navigation - Center */}
+            <div className="hidden md:flex items-center justify-center gap-8 flex-1">
+              {/* Home Link */}
+              <button
+                onClick={() => navigate("/")}
+                className={`relative font-semibold text-base transition-all duration-200 group ${
+                  isHomePage
+                    ? "text-white dark:text-white"
+                    : "text-white dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                }`}
+              >
+                Home
+                <div
+                  className={`absolute -bottom-1 left-0 h-0.5 bg-primary transition-all duration-200 ${
+                    isHomePage ? "w-full" : "w-0 group-hover:w-full"
+                  }`}
+                />
+              </button>
+
+              {/* Enroll Link - Always goes to signup */}
+              <button
+                onClick={() => navigate("/signup")}
+                className={`relative font-semibold text-base transition-all duration-200 group ${
+                  isEnrollActive
+                    ? "text-white dark:text-white"
+                    : "text-white dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                }`}
+              >
+                Enroll
+                <div
+                  className={`absolute -bottom-1 left-0 h-0.5 bg-primary transition-all duration-200 ${
+                    isEnrollActive ? "w-full" : "w-0 group-hover:w-full"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Desktop Log In Button - Right */}
+            <div className="hidden md:block">
+              <Button
+                onClick={() => navigate("/auth")}
+                className={`font-semibold px-6 py-2 rounded-full transition-all duration-200 ${
+                  isLoginActive
+                    ? "bg-primary text-white ring-2 ring-primary ring-offset-2"
+                    : "bg-primary text-white hover:bg-white/90 hover:text-primary hover:border-black"
+                }`}
+              >
+                Log In
+              </Button>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors duration-200"
+              aria-label="Toggle menu"
+            >
+              {isMenuOpen ? (
+                <X className="w-6 h-6 text-gray-900 dark:text-white" />
+              ) : (
+                <Menu className="w-6 h-6 text-gray-900 dark:text-white" />
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Menu Overlay */}
+      {isMenuOpen && (
+        <div
+          className="fixed inset-0 top-[76px] md:hidden z-40 bg-black/20"
+          style={{ backdropFilter: "blur(8px)" }}
+          onClick={() => setIsMenuOpen(false)}
+        />
+      )}
+
+      {/* Mobile Menu */}
+      {isMenuOpen && (
+        <div
+          className="fixed top-[76px] left-0 right-0 md:hidden z-40 overflow-hidden animate-in slide-in-from-top-2 mx-4"
+          style={{
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(12px)",
+            borderBottom: "1px solid rgba(189, 67, 16, 0.1)",
+            borderRadius: "0.75rem",
+          }}
+        >
+          <div className="max-w-7xl mx-auto px-4 py-4 space-y-3">
+            {/* Home Link */}
+            <button
+              onClick={() => {
+                navigate("/");
+                setIsMenuOpen(false);
+              }}
+              className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-200 relative group ${
+                isHomePage
+                  ? "text-primary dark:text-primary"
+                  : "text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              }`}
+            >
+              Home
+              <div
+                className={`absolute bottom-2 left-4 h-0.5 bg-primary transition-all duration-200 ${
+                  isHomePage ? "w-[calc(100%-2rem)]" : "w-0 group-hover:w-[calc(100%-2rem)]"
+                }`}
+              />
+            </button>
+
+            {/* Enroll Link - Always goes to signup */}
+            <button
+              onClick={() => {
+                navigate("/signup");
+                setIsMenuOpen(false);
+              }}
+              className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-200 relative group ${
+                isEnrollActive
+                  ? "text-primary dark:text-primary"
+                  : "text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              }`}
+            >
+              Enroll
+              <div
+                className={`absolute bottom-2 left-4 h-0.5 bg-primary transition-all duration-200 ${
+                  isEnrollActive ? "w-[calc(100%-2rem)]" : "w-0 group-hover:w-[calc(100%-2rem)]"
+                }`}
+              />
+            </button>
+
+            {/* Log In Button - Always goes to auth */}
+            <Button
+              onClick={() => {
+                navigate("/auth");
+                setIsMenuOpen(false);
+              }}
+              className={`w-full font-semibold py-3 rounded-lg transition-all duration-200 ${
+                isLoginActive
+                  ? "bg-primary text-white ring-2 ring-primary ring-offset-2"
+                  : "bg-primary hover:bg-primary/90 text-white"
+              }`}
+            >
+              Log In
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
