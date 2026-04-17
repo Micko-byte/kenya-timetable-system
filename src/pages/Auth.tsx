@@ -164,38 +164,24 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
           throw new Error("Passwords do not match.");
         }
 
-        const { data, error } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              full_name: formData.fullName,
-              school_name: formData.schoolName,
-              school_type: formData.schoolType,
-            },
-            // Allow overriding the confirmation redirect target via env var so
-            // developers can point the email confirmation link to a backend
-            // running on a different port (e.g. http://localhost:8000).
-            emailRedirectTo:
-              import.meta.env.VITE_EMAIL_REDIRECT_TO || `${window.location.origin}/dashboard`,
+        const { error: createError } = await supabase.functions.invoke("auth-signup", {
+          body: {
+            email: formData.email,
+            password: formData.password,
+            fullName: formData.fullName,
+            schoolName: formData.schoolName,
+            schoolType: formData.schoolType,
           },
         });
 
-        if (error) throw error;
+        if (createError) throw createError;
 
-        // If Supabase is configured to require email confirmation, signUp will not
-        // return an active session. In that case we should inform the user to
-        // check their inbox instead of attempting to navigate as a logged-in user.
-        if (!data?.session) {
-          toast.success(
-            "Registration successful! Please check your email and confirm your account before signing in."
-          );
-          // Switch to login view to encourage the user to confirm email and then sign in
-          setIsLogin(true);
-          setFormData({ ...formData, password: "", confirmPassword: "" });
-          return;
-        }
-        
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (signInError) throw signInError;
 
         // Check user role from database (only proceed if we have a session)
         const { data: { user } } = await supabase.auth.getUser();
