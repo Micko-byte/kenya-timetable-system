@@ -23,6 +23,7 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
     fullName: "",
     email: "",
     password: "",
+    confirmPassword: "",
     schoolName: "",
     schoolType: "",
   });
@@ -37,6 +38,8 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
   const [isResetting, setIsResetting] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
+  const [showSignUpConfirmPassword, setShowSignUpConfirmPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -153,6 +156,14 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
         }
         toast.success("Welcome back! ");
       } else {
+        if (!formData.password || !formData.confirmPassword) {
+          throw new Error("Please enter and confirm your password.");
+        }
+
+        if (formData.password !== formData.confirmPassword) {
+          throw new Error("Passwords do not match.");
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -181,6 +192,7 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
           );
           // Switch to login view to encourage the user to confirm email and then sign in
           setIsLogin(true);
+          setFormData({ ...formData, password: "", confirmPassword: "" });
           return;
         }
         
@@ -327,6 +339,58 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
             </div>
           )}
 
+          {!isLogin && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="signup-password" className="text-gray-900 dark:text-white">Password *</Label>
+                <div className="relative">
+                  <Input
+                    id="signup-password"
+                    type={showSignUpPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    required={!isLogin}
+                    className="transition-all focus:ring-2 focus:ring-primary pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSignUpPassword(!showSignUpPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  >
+                    {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="signup-confirm-password" className="text-gray-900 dark:text-white">Confirm Password *</Label>
+                <div className="relative">
+                  <Input
+                    id="signup-confirm-password"
+                    type={showSignUpConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.confirmPassword}
+                    onChange={(e) =>
+                      setFormData({ ...formData, confirmPassword: e.target.value })
+                    }
+                    required={!isLogin}
+                    className="transition-all focus:ring-2 focus:ring-primary pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSignUpConfirmPassword(!showSignUpConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  >
+                    {showSignUpConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
           <Button
             type="submit"
             className="font-semibold w-full gradient-primary text-white hover:opacity-90 transition-all rounded-full"
@@ -361,7 +425,14 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
         <div className="mt-6 text-center">
           <button
             type="button"
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setFormData((current) => ({
+                ...current,
+                password: "",
+                confirmPassword: "",
+              }));
+            }}
             className="text-sm text-primary hover:underline transition-all"
           >
             {isLogin
