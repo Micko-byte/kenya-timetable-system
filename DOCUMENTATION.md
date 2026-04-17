@@ -32,6 +32,20 @@ That means:
 - the timetable can later be traced back to the exact template that produced it
 - downloads and admin views can show the template name instead of only a theme label
 
+## Timetable Editing
+
+The timetable studio now supports editing both the grid and the printable header.
+
+Editable saved fields:
+
+- `class_name`
+- `term`
+- `academic_year`
+
+These fields are loaded when a timetable is selected and are saved back to the same `timetables` row when the user clicks `Save`.
+
+The visual layout of the top header has also been widened so longer class names and term/year labels stay centered inside their boxes instead of clipping.
+
 ## Database SQL
 
 Use this migration as the app schema:
@@ -47,6 +61,21 @@ alter table public.timetables
 create index if not exists idx_timetables_template_id
   on public.timetables(template_id);
 ```
+
+If you want the editable timetable header fields, add:
+
+```sql
+alter table public.timetables
+  add column if not exists class_name text,
+  add column if not exists term text,
+  add column if not exists academic_year text;
+```
+
+## Payment Tables
+
+Use this migration for Paystack checkout history, subscription receipts, and queued emails:
+
+[`supabase/migrations/20260417_02_paystack_payments.sql`](./supabase/migrations/20260417_02_paystack_payments.sql)
 
 If the table already exists and you want to backfill records where the school template matches the template row, you can optionally run:
 
@@ -91,6 +120,28 @@ The timetable screen supports:
 - JPEG export through the shared export helper
 
 Generated filenames are sanitized so they work on Windows, macOS, and browser downloads.
+
+## Billing and Paystack
+
+The billing page now uses an in-app Paystack popup checkout plus a verification step.
+
+Flow:
+
+1. The browser calls the `paystack-init` Supabase Edge Function.
+2. The function inserts a pending row into `payment_transactions` and returns a reference.
+3. The browser opens Paystack inline with the public key and keeps the user on the billing page.
+4. The user can choose card or mobile money in the popup.
+5. The browser calls the `paystack-verify` function after a successful payment.
+6. The verify function confirms the transaction, updates `payment_transactions`, updates `subscriptions`, inserts a payment activity log, and queues a receipt notification.
+
+Required Edge Function secrets:
+
+- `PAYSTACK_SECRET_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_URL`
+- `PAYSTACK_SECRET_KEY` should stay only in Supabase Edge Functions.
+
+The billing UI reads payment history from `activity_logs` rows with `activity_type = 'payment'`.
 
 ## Python Generator
 

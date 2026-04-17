@@ -57,6 +57,9 @@ interface TimetableRow {
   stream_id: string;
   template_id: string | null;
   template_type: string | null;
+  class_name: string | null;
+  term: string | null;
+  academic_year: string | null;
   generated_by: string | null;
   generated_at: string;
   status: "draft" | "final" | "exported";
@@ -93,6 +96,19 @@ function getTimetableLabel(timetable: TimetableRow) {
       ? ` • Template ${timetable.template_id.slice(0, 8)}`
       : "";
   return `Grade ${timetable.streams.grade} - ${timetable.streams.stream_name}${templateName}`;
+}
+
+function getHeaderClassName(timetable: TimetableRow | null): string {
+  if (!timetable?.streams) return "Class";
+  return timetable.class_name?.trim() || `Grade ${timetable.streams.grade} - ${timetable.streams.stream_name}`;
+}
+
+function getHeaderTerm(timetable: TimetableRow | null): string {
+  return timetable?.term?.trim() || "Term 1";
+}
+
+function getHeaderYear(timetable: TimetableRow | null): string {
+  return timetable?.academic_year?.trim() || new Date().getFullYear().toString();
 }
 
 function getThemeFromTemplateType(templateType: string | null): DesignTheme {
@@ -139,11 +155,12 @@ const Timetables = () => {
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTimetableId, setSelectedTimetableId] = useState<string | null>(null);
+  const [headerClassName, setHeaderClassName] = useState("Class");
+  const [headerTerm, setHeaderTerm] = useState("Term 1");
+  const [headerYear, setHeaderYear] = useState(new Date().getFullYear().toString());
 
   const [theme, setTheme] = useState<DesignTheme>("classic");
   const [fontFamily, setFontFamily] = useState(FONT_OPTIONS[0].value);
-  const [term, setTerm] = useState("Term 1");
-  const [year, setYear] = useState(new Date().getFullYear().toString());
   const [days, setDays] = useState<string[]>([...DEFAULT_DAYS]);
   const [periods, setPeriods] = useState<PeriodSlot[]>([...LEVEL_PERIODS.eight_four_four]);
   const [grid, setGrid] = useState<StudioGrid>(() => createGridForLevel("eight_four_four"));
@@ -160,6 +177,16 @@ const Timetables = () => {
     if (!selectedTimetableId && timetables.length > 0) {
       setSelectedTimetableId(timetables[0].id);
     }
+  }, [selectedTimetableId, timetables]);
+
+  useEffect(() => {
+    const selected = selectedTimetableId
+      ? timetables.find((item) => item.id === selectedTimetableId)
+      : timetables[0] || null;
+
+    setHeaderClassName(getHeaderClassName(selected));
+    setHeaderTerm(getHeaderTerm(selected));
+    setHeaderYear(getHeaderYear(selected));
   }, [selectedTimetableId, timetables]);
 
   const fetchData = async () => {
@@ -298,6 +325,9 @@ const Timetables = () => {
           stream_id: stream.id,
           template_id: selectedTemplate?.id || currentTemplateId || null,
           template_type: theme,
+          class_name: headerClassName,
+          term: headerTerm,
+          academic_year: headerYear,
           generated_by: userId,
           generated_at: new Date().toISOString(),
           status: generated.status,
@@ -350,6 +380,9 @@ const Timetables = () => {
         .update({
           template_id: selectedTimetable.template_id || selectedTemplate?.id || null,
           template_type: theme,
+          class_name: headerClassName,
+          term: headerTerm,
+          academic_year: headerYear,
           timetable_data: entries,
           generated_at: new Date().toISOString(),
         })
@@ -384,7 +417,7 @@ const Timetables = () => {
 
   const handleExcelExport = () => {
     if (!selectedTimetable) return toast.error("Choose a timetable to export.");
-    exportTimetableToXls(grid, schoolName, getTimetableLabel(selectedTimetable), term, year, periods);
+    exportTimetableToXls(grid, schoolName, headerClassName, headerTerm, headerYear, periods);
     toast.success("Excel file exported.");
   };
 
@@ -393,7 +426,7 @@ const Timetables = () => {
     await exportTimetableFile(
       {
         ...(selectedTimetable as any),
-        name: getTimetableLabel(selectedTimetable),
+        name: headerClassName,
         timetable_data: days.flatMap((_, dayIdx) =>
           periods.map((_, periodIdx) => ({
             id: `${dayIdx + 1}-${periodIdx + 1}`,
@@ -581,6 +614,12 @@ const Timetables = () => {
                     </div>
                   </Card>
 
+                  <Card className="p-4 border-primary/10 bg-primary/5">
+                    <p className="text-sm text-foreground">
+                      Click any timetable cell to edit subjects and teachers, then adjust the school, class, term, and year fields above before saving.
+                    </p>
+                  </Card>
+
                   <div
                     id="timetable-studio-print"
                     className="bg-card rounded-xl shadow-lg border border-border overflow-hidden"
@@ -588,13 +627,13 @@ const Timetables = () => {
                   >
                     <SchoolHeader
                       schoolName={schoolName}
-                      className={getTimetableLabel(selectedTimetable)}
-                      term={term}
-                      year={year}
+                      className={headerClassName}
+                      term={headerTerm}
+                      year={headerYear}
                       onSchoolNameChange={setSchoolName}
-                      onClassNameChange={() => {}}
-                      onTermChange={setTerm}
-                      onYearChange={setYear}
+                      onClassNameChange={setHeaderClassName}
+                      onTermChange={setHeaderTerm}
+                      onYearChange={setHeaderYear}
                       theme={theme}
                     />
                     <div className="p-3">

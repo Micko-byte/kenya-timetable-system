@@ -26,29 +26,32 @@ export default function SchoolHeader({
   const currentTheme = DESIGN_THEMES[theme];
 
   return (
-    <div className={`${currentTheme.headerBg} rounded-t-xl px-4 py-3`}>
-      <div className="flex flex-col items-center gap-2">
+    <div className={`${currentTheme.headerBg} rounded-t-xl px-4 py-4 sm:px-6 sm:py-5`}>
+      <div className="flex flex-col items-center gap-4 text-center">
         <input
           value={schoolName}
           onChange={(event) => onSchoolNameChange(event.target.value)}
-          className="bg-transparent text-white text-xl font-display font-extrabold text-center border-b-2 border-white/30 focus:border-white outline-none pb-1 w-full max-w-lg placeholder:text-white/50"
+          className="bg-transparent text-white text-lg sm:text-2xl md:text-3xl font-display font-extrabold text-center border-b-2 border-white/30 focus:border-white outline-none pb-2 w-full max-w-5xl placeholder:text-white/50 leading-tight"
           placeholder="Enter School Name"
         />
-        <div className="flex flex-wrap items-center gap-4 justify-center">
+
+        <div className="grid w-full max-w-5xl grid-cols-1 gap-3 sm:grid-cols-3">
           {[
-            { label: "Class", value: className, onChange: onClassNameChange, placeholder: "e.g. Grade 8", width: "w-32" },
-            { label: "Term", value: term, onChange: onTermChange, placeholder: "Term 1", width: "w-28" },
-            { label: "Year", value: year, onChange: onYearChange, placeholder: "2026", width: "w-24" },
+            { label: "Class", value: className, onChange: onClassNameChange, placeholder: "e.g. Grade 8" },
+            { label: "Term", value: term, onChange: onTermChange, placeholder: "Term 1" },
+            { label: "Year", value: year, onChange: onYearChange, placeholder: "2026" },
           ].map((item) => (
-            <div key={item.label} className="flex items-center gap-2">
-              <span className="text-white text-sm font-bold tracking-wide drop-shadow-sm">{item.label}:</span>
+            <label key={item.label} className="flex flex-col items-center gap-1.5 min-w-0">
+              <span className="text-white text-xs sm:text-sm font-bold tracking-[0.18em] uppercase drop-shadow-sm">
+                {item.label}
+              </span>
               <input
                 value={item.value}
                 onChange={(event) => item.onChange(event.target.value)}
-                className={`bg-white/20 text-white text-sm font-bold rounded-md px-2.5 py-2 ${item.width} text-center outline-none border-2 border-white/40 focus:border-white focus:bg-white/30 placeholder:text-white/50 transition-all`}
+                className="w-full min-w-0 rounded-xl border-2 border-white/40 bg-white/20 px-4 py-3 text-center text-sm sm:text-base font-bold text-white outline-none transition-all placeholder:text-white/60 focus:border-white focus:bg-white/30 leading-tight"
                 placeholder={item.placeholder}
               />
-            </div>
+            </label>
           ))}
         </div>
       </div>
