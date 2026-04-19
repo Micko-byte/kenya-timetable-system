@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.svg";
 
 export const Header = () => {
   const navigate = useNavigate();
@@ -73,19 +73,10 @@ export const Header = () => {
           <div className="flex justify-between items-center">
             {/* Logo - Left */}
             <div
-              className="flex items-center gap-2 md:gap-3 cursor-pointer hover:opacity-80 transition-opacity duration-200"
+              className="flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-200"
               onClick={() => navigate("/")}
             >
               <img src={logo} alt="ElimuTime logo" className="h-12 w-auto md:h-16 flex-shrink-0 object-contain" />
-              <span
-                className={`text-xl md:text-2xl font-bold text-white dark:text-white whitespace-nowrap transition-all duration-300 ${
-                  hasScrolled
-                    ? "max-w-0 opacity-0 -translate-x-2 overflow-hidden"
-                    : "max-w-[220px] opacity-100 translate-x-0"
-                }`}
-              >
-                ElimuTime
-              </span>
             </div>
 
             {/* Desktop Navigation - Center */}

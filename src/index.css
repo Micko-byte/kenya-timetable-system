@@ -255,6 +255,24 @@ All colors MUST be HSL.
     background-position: center top;
   }
 
+  .brand-grid-bg-bold {
+    background-image:
+      linear-gradient(rgb(33 150 243 / 0.24) 1.5px, transparent 1.5px),
+      linear-gradient(90deg, rgb(33 150 243 / 0.24) 1.5px, transparent 1.5px);
+    background-size: 52px 52px;
+    background-position: center top;
+  }
+
+  .logo-grid-bg {
+    background-image:
+      linear-gradient(rgb(168 85 247 / 0.2) 1.5px, transparent 1.5px),
+      linear-gradient(90deg, rgb(255 92 56 / 0.18) 1.5px, transparent 1.5px),
+      linear-gradient(rgb(33 150 243 / 0.12) 1.5px, transparent 1.5px),
+      linear-gradient(90deg, rgb(33 150 243 / 0.12) 1.5px, transparent 1.5px);
+    background-size: 52px 52px;
+    background-position: center top;
+  }
+
   .shimmer {
     background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.1), transparent);
     background-size: 1000px 100%;

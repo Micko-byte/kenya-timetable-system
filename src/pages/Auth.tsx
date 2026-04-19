@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import authBackground from "@/assets/auth-background.jpg";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.svg";
 
 interface AuthProps {
   isSignUp?: boolean;
@@ -221,7 +221,7 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
       <Card className="w-full max-w-md p-8 shadow-2xl animate-scale-in relative z-10 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md mt-20">
         <div className="flex flex-col items-center mb-8">
           <img src={logo} alt="ElimuTime logo" className="mb-4 h-24 w-auto object-contain" />
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ElimuTime</h1>
+     
           <p className="text-gray-600 dark:text-gray-300 mt-2">
             {isLogin ? "Welcome back!" : "Enroll your school to ElimuTime"}
           </p>

@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.svg";
 import carousel1 from "@/assets/carousel-1.webp";
 import demoGif from "@/assets/demo.gif";
+import teacherIcon from "@/assets/feature-teacher.svg";
+import streamIcon from "@/assets/feature-stream.svg";
+import timetableIcon from "@/assets/feature-timetable.svg";
 import { Header } from "@/components/Header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 
 const HERO_WORDS = ["fast.", "accurate.", "effortless."];
@@ -89,32 +91,32 @@ const FEATURES = [
   {
     title: "Teacher Management",
     description: "Add teachers, assign subjects, and manage workload.",
-    color: "from-secondary to-secondary/80",
-    fill: "from-secondary via-secondary/85 to-secondary/65",
+    icon: teacherIcon,
+    cardClass: "bg-gradient-to-br from-secondary via-secondary/90 to-secondary/75",
+    iconShellClass: "",
   },
   {
     title: "Smart Streams",
     description: "Organize classes and streams automatically.",
-    color: "from-accent to-accent/80",
-    fill: "from-accent via-accent/85 to-accent/65",
+    icon: streamIcon,
+    cardClass: "bg-gradient-to-br from-accent via-accent/90 to-accent/75",
+    iconShellClass: "",
   },
   {
     title: "Automated Timetables",
     description: "Generate conflict-free timetables powered by AI.",
-    color: "from-primary to-primary/80",
-    fill: "from-primary via-primary/85 to-primary/65",
+    icon: timetableIcon,
+    cardClass: "bg-gradient-to-br from-primary via-primary/90 to-primary/75",
+    iconShellClass: "",
   },
 ] as const;
 
 const Index = () => {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
   const [isYearly, setIsYearly] = useState(false);
   const [heroWordIndex, setHeroWordIndex] = useState(0);
   const [typedWord, setTypedWord] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
-  const [activeFeatureIndex, setActiveFeatureIndex] = useState<number | null>(null);
-  const featureRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -165,46 +167,13 @@ const Index = () => {
     return () => window.clearTimeout(timeout);
   }, [heroWordIndex, isDeleting, typedWord]);
 
-  useEffect(() => {
-    if (!isMobile) {
-      setActiveFeatureIndex(null);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visibleEntries = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-
-        if (visibleEntries.length > 0) {
-          const index = Number(visibleEntries[0].target.getAttribute("data-feature-index"));
-          setActiveFeatureIndex(index);
-          return;
-        }
-
-        setActiveFeatureIndex(null);
-      },
-      {
-        threshold: [0.25, 0.5, 0.75],
-        rootMargin: "0px 0px -12% 0px",
-      },
-    );
-
-    featureRefs.current.forEach((element) => {
-      if (element) observer.observe(element);
-    });
-
-    return () => observer.disconnect();
-  }, [isMobile]);
-
   return (
-    <div className="relative overflow-y-auto scroll-smooth bg-white">
+    <div className="relative overflow-y-auto scroll-smooth bg-transparent">
       <Header />
 
       <div className="relative isolate">
         <div
-          className="brand-grid-bg-strong pointer-events-none absolute inset-x-0 top-0 z-0 h-[175vh]"
+          className="brand-grid-bg-strong pointer-events-none absolute inset-x-0 top-0 bottom-0 z-0"
           style={{
             maskImage:
               "linear-gradient(to bottom, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.92) 58%, rgba(0,0,0,0.58) 82%, transparent 100%)",
@@ -212,7 +181,7 @@ const Index = () => {
               "linear-gradient(to bottom, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.92) 58%, rgba(0,0,0,0.58) 82%, transparent 100%)",
           }}
         />
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[175vh] bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_26%),radial-gradient(circle_at_top_right,hsl(var(--secondary)/0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.7),rgba(255,255,255,0.86)_68%,rgba(255,255,255,1)_100%)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 bottom-0 z-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_26%),radial-gradient(circle_at_top_right,hsl(var(--secondary)/0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.7),rgba(255,255,255,0.86)_68%,rgba(255,255,255,1)_100%)]" />
 
         <section className="relative z-10 flex min-h-screen items-center justify-center overflow-hidden bg-transparent pt-24">
           <div className="container relative z-10 mx-auto px-4 py-20">
@@ -250,7 +219,17 @@ const Index = () => {
           </div>
         </section>
 
-        <section className="relative z-10 flex items-center justify-center bg-transparent">
+        <section className="relative z-10 flex items-center justify-center overflow-hidden bg-transparent">
+          <div
+            className="logo-grid-bg pointer-events-none absolute inset-0 opacity-100"
+            style={{
+              maskImage:
+                "linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.65) 25%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.25) 75%, rgba(0,0,0,0.1) 100%)",
+              WebkitMaskImage:
+                "linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.65) 25%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.25) 75%, rgba(0,0,0,0.1) 100%)",
+            }}
+          />
+          <div className="pointer-events-none absolute inset-0 bg-transparent" />
           <div className="container mx-auto px-4 py-20">
             <div className="mx-auto max-w-4xl text-center">
               <div className="mb-8 overflow-hidden rounded-2xl bg-muted/90 shadow-[0_18px_45px_rgba(1,16,39,0.08)] backdrop-blur-sm">
@@ -270,56 +249,33 @@ const Index = () => {
             </div>
           </div>
         </section>
-      </div>
 
-      <section className="flex items-center justify-center" style={{ backgroundColor: "#001429" }}>
-        <div className="container mx-auto px-4 py-20">
-          <div className="mb-16 text-center">
-            <h2 className="text-4xl font-bold text-white">Our Features</h2>
-          </div>
+      <section className="relative flex items-center justify-center overflow-hidden bg-transparent">
+        <div className="container relative z-10 mx-auto px-4 py-20">
+          <div className="rounded-[2rem] border border-white/50 bg-[#001429] px-6 py-12 shadow-[0_24px_70px_rgba(0,16,39,0.12)] md:px-10 md:py-14">
+            <div className="mb-16 text-center">
+              <h2 className="text-4xl font-bold text-white/70">Why choose ElimuTime?</h2>
+            </div>
 
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-            {FEATURES.map((feature, index) => (
-              <div
-                key={feature.title}
-                ref={(element) => {
-                  featureRefs.current[index] = element;
-                }}
-                data-feature-index={index}
-              >
-                <Card className="group relative h-[300px] overflow-hidden border-white/10 bg-white p-10 text-center shadow-lg transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl">
-                  <div
-                    className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${feature.color} transition-all duration-500 md:group-hover:w-full ${
-                      isMobile && activeFeatureIndex === index ? "w-full" : ""
-                    }`}
-                  />
-                  <div
-                    className={`absolute inset-0 origin-left scale-x-0 bg-gradient-to-r ${feature.fill} transition-transform duration-500 ease-out md:group-hover:scale-x-100 ${
-                      isMobile && activeFeatureIndex === index ? "scale-x-100" : ""
-                    }`}
-                  />
-                  <div className="relative z-10 flex h-full flex-col items-center justify-center">
-                    <h3
-                      className={`mb-4 text-2xl md:text-3xl font-bold transition-colors duration-500 ${
-                        isMobile && activeFeatureIndex === index ? "text-white" : "text-foreground md:group-hover:text-white"
-                      }`}
-                    >
-                      {feature.title}
-                    </h3>
-                    <p
-                      className={`text-base leading-7 transition-colors duration-500 ${
-                        isMobile && activeFeatureIndex === index ? "text-white/90" : "text-muted-foreground md:group-hover:text-white/90"
-                      }`}
-                    >
-                      {feature.description}
-                    </p>
-                  </div>
-                </Card>
-              </div>
-            ))}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {FEATURES.map((feature) => (
+                <div key={feature.title}>
+                  <Card className={`relative flex h-[320px] flex-col items-center justify-center overflow-hidden border-0 p-10 text-center text-white shadow-[0_24px_60px_rgba(1,16,39,0.18)] transition-transform duration-300 hover:-translate-y-1.5 rounded-none ${feature.cardClass}`}>
+                    <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
+                      <div className={`mb-6 flex h-20 w-20 items-center justify-center rounded-2xl p-4 ${feature.iconShellClass}`}>
+                        <img src={feature.icon} alt="" aria-hidden="true" className="h-full w-full object-contain" />
+                      </div>
+                      <h3 className="mb-4 text-2xl font-bold  md:text-3xl">{feature.title}</h3>
+                      <p className="max-w-[18rem] text-base leading-7 text-white/70">{feature.description}</p>
+                    </div>
+                  </Card>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
+    </div>
 
       <section id="pricing" className="relative flex items-center justify-center overflow-hidden bg-white scroll-mt-28">
         <div className="brand-grid-bg pointer-events-none absolute inset-0 z-0 opacity-100" />
@@ -405,13 +361,13 @@ const Index = () => {
 
       <footer className="bg-foreground py-12 text-white">
         <div className="container mx-auto px-4">
-          <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-3">
-            <div className="flex flex-col items-start">
+          <div className="mb-8 grid grid-cols-1 gap-10 md:grid-cols-[1.2fr_0.9fr_1fr] md:items-start">
+            <div className="flex flex-col items-center text-center md:items-start md:text-left">
               <img src={logo} alt="ElimuTime" className="mb-4 h-16 w-auto" />
               <p className="text-white/70">Smart timetabling for modern schools</p>
             </div>
 
-            <div className="text-center">
+            <div className="flex flex-col items-center justify-center text-center">
               <p className="text-white/70">
                 Powered by{" "}
                 <a href="https://notifyai.org/" className="font-semibold text-primary hover:underline">
@@ -420,18 +376,18 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="text-right">
-              <p className="mb-2 text-white/70">
+            <div className="text-center md:text-right">
+              <p className="text-white/70">
                 <a href="mailto:notifytechgroup@gmail.com" className="hover:text-white">
                   notifytechgroup@gmail.com
                 </a>
               </p>
-              <p className="text-white/70">© 2026 ElimuTime. All rights reserved.</p>
             </div>
           </div>
 
           <div className="border-t border-white/10 pt-8 text-center text-sm text-white/60">
             <p>Crafted with precision for educational excellence</p>
+            <p className="mt-3">&copy; 2026 ElimuTime. All rights reserved.</p>
           </div>
         </div>
       </footer>
