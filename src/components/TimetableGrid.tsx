@@ -57,7 +57,7 @@ export default function TimetableGrid({
       <table className={`w-full border-collapse ${currentTheme.borderStyle}`}>
         <thead>
           <tr>
-            <th className={`${currentTheme.headerBg} ${currentTheme.headerText} px-2 py-1 text-[8px] ${currentTheme.fontStyle} font-bold border border-border/30 sticky left-0 z-10 min-w-[60px]`}>
+            <th className={`${currentTheme.headerBg} ${currentTheme.headerText} px-2 py-1 text-[8px] ${currentTheme.fontStyle} font-bold border border-border sticky left-0 z-10 min-w-[60px]`}>
               DAY / TIME
             </th>
             {periods.map((period, index) => {
@@ -65,7 +65,7 @@ export default function TimetableGrid({
               return (
                 <th
                   key={index}
-                  className={`${currentTheme.headerBg} ${currentTheme.headerText} px-0.5 py-1 text-[7px] ${currentTheme.fontStyle} font-bold border border-border/30 ${isBreak ? "min-w-[44px] max-w-[50px]" : "min-w-[68px]"} ${onPeriodChange ? "cursor-pointer hover:opacity-80" : ""}`}
+                  className={`${currentTheme.headerBg} ${currentTheme.headerText} px-0.5 py-1 text-[7px] ${currentTheme.fontStyle} font-bold border border-border ${isBreak ? "min-w-[44px] max-w-[50px]" : "min-w-[68px]"} ${onPeriodChange ? "cursor-pointer hover:opacity-80" : ""}`}
                 >
                   {editingPeriod === index && onPeriodChange ? (
                     <div className="flex flex-col gap-0.5" onClick={(event) => event.stopPropagation()}>

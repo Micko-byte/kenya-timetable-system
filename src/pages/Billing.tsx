@@ -79,7 +79,7 @@ const Billing = () => {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("school_id, schools(name)")
+        .select("school_id")
         .eq("id", user.id)
         .single();
 
@@ -88,10 +88,10 @@ const Billing = () => {
       }
 
       setSchoolId(profile.school_id);
-      setSchoolName((profile.schools as any)?.name || "ElimuTime School");
       setSchoolEmail(user.email || "");
 
-      const [{ data: subData }, { data: activityData }] = await Promise.all([
+      const [{ data: schoolData }, { data: subData }, { data: activityData }] = await Promise.all([
+        supabase.from("schools").select("name").eq("id", profile.school_id).single(),
         supabase.from("subscriptions").select("*").eq("school_id", profile.school_id).single(),
         supabase
           .from("activity_logs")
@@ -102,6 +102,7 @@ const Billing = () => {
           .limit(6),
       ]);
 
+      setSchoolName(schoolData?.name || "ElimuTime School");
       setSubscription(subData);
       setHistory((activityData || []) as PaymentLog[]);
     } catch (error: any) {
@@ -377,7 +378,7 @@ const Billing = () => {
         </Card>
 
         <Card className="p-6">
-          <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-xl font-bold text-primary flex items-center gap-2">
               <ReceiptText className="w-5 h-5" />
               Payment History

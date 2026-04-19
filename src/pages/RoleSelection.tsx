@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Users, Shield } from "lucide-react";
+import { Users, Shield } from "lucide-react";
 import { toast } from "sonner";
+import logo from "@/assets/logo.png";
 
 const RoleSelection = () => {
   const navigate = useNavigate();
@@ -48,12 +49,10 @@ const RoleSelection = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
-      <Card className="w-full max-w-2xl p-8 shadow-2xl animate-scale-in">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-foreground via-foreground to-primary/90">
+      <Card className="w-full max-w-2xl p-8 shadow-2xl animate-scale-in border-white/10 bg-white/95 backdrop-blur-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center mb-4">
-            <GraduationCap className="w-10 h-10 text-primary-foreground" />
-          </div>
+          <img src={logo} alt="ElimuTime logo" className="mb-4 h-28 w-auto object-contain" />
           <h1 className="text-4xl font-bold text-primary mb-2">Notify Tech Group</h1>
           <p className="text-muted-foreground text-center">
             Welcome, {email}

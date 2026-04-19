@@ -8,8 +8,9 @@ import { Card } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { GraduationCap, Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import authBackground from "@/assets/auth-background.jpg";
+import logo from "@/assets/logo.png";
 
 interface AuthProps {
   isSignUp?: boolean;
@@ -219,9 +220,7 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
       <div className="absolute inset-0 bg-primary/20 backdrop-blur-sm"></div>
       <Card className="w-full max-w-md p-8 shadow-2xl animate-scale-in relative z-10 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md mt-20">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4">
-            <GraduationCap className="w-8 h-8 text-primary-foreground" />
-          </div>
+          <img src={logo} alt="ElimuTime logo" className="mb-4 h-24 w-auto object-contain" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ElimuTime</h1>
           <p className="text-gray-600 dark:text-gray-300 mt-2">
             {isLogin ? "Welcome back!" : "Enroll your school to ElimuTime"}

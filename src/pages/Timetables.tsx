@@ -466,28 +466,48 @@ const Timetables = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={() => navigate("/teachers")} className="gap-2 rounded-full font-semibold">
               <ArrowLeft className="w-4 h-4" />
               Back
             </Button>
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-3" style={{ fontFamily: "Recoleta, serif", color: "rgb(13, 60, 68)" }}>
-                <Calendar className="w-8 h-8" />
-                AI Timetable Studio
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                Generate, edit, and export Kenyan school timetables using the current ElimuTime theme.
-              </p>
+            <div className="flex-1" />
+            <div className="hidden md:flex gap-2 flex-wrap justify-end">
+              <Button variant="outline" onClick={handleEmailTeachers} className="gap-2 rounded-full font-semibold">
+                <Mail className="w-4 h-4" />
+                Email
+              </Button>
+              <Button onClick={handleGenerate} disabled={generating} className="bg-[#359AFF] text-white hover:bg-[#1F73E0] gap-2 font-semibold rounded-full">
+                {generating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Generate New
+                  </>
+                )}
+              </Button>
             </div>
           </div>
-          <div className="flex gap-2 flex-wrap justify-end">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold inline-flex items-center gap-3" style={{ fontFamily: "Recoleta, serif", color: "rgb(13, 60, 68)" }}>
+              <Calendar className="w-8 h-8" />
+              AI Timetable Studio
+            </h1>
+            <p className="text-muted-foreground mt-2 mx-auto max-w-3xl">
+              Generate, edit, and export Kenyan school timetables using the current ElimuTime theme.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 justify-center md:hidden">
             <Button variant="outline" onClick={handleEmailTeachers} className="gap-2 rounded-full font-semibold">
               <Mail className="w-4 h-4" />
               Email
             </Button>
-            <Button onClick={handleGenerate} disabled={generating} className="bg-[#FACC15] text-[#0D3C44] hover:bg-[#F5BD0D] gap-2 font-semibold rounded-full">
+            <Button onClick={handleGenerate} disabled={generating} className="bg-[#359AFF] text-white hover:bg-[#1F73E0] gap-2 font-semibold rounded-full">
               {generating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -537,13 +557,13 @@ const Timetables = () => {
             <p className="text-muted-foreground">Loading timetable data...</p>
           </Card>
         ) : filteredTimetables.length === 0 ? (
-          <Card className="p-12 text-center">
+          <Card className="p-6 text-center sm:p-12">
             <Calendar className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-xl font-semibold mb-2">No timetables yet</h3>
             <p className="text-muted-foreground mb-4">
               Generate timetables after setting up streams, teachers, subjects, and a template.
             </p>
-            <Button onClick={handleGenerate} className="bg-[#FACC15] text-[#0D3C44] hover:bg-[#F5BD0D] gap-2 font-semibold rounded-full">
+            <Button onClick={handleGenerate} className="bg-[#359AFF] text-white hover:bg-[#1F73E0] gap-2 font-semibold rounded-full">
               <Plus className="w-4 h-4 mr-2" />
               Generate Timetables
             </Button>
@@ -602,7 +622,7 @@ const Timetables = () => {
                           <Download className="w-4 h-4" />
                           PNG
                         </Button>
-                        <Button onClick={handleSaveStudio} disabled={saving} className="gap-2 bg-[#FACC15] text-[#0D3C44] hover:bg-[#F5BD0D]">
+                        <Button onClick={handleSaveStudio} disabled={saving} className="gap-2 bg-[#359AFF] text-white hover:bg-[#1F73E0]">
                           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                           Save
                         </Button>

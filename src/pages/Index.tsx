@@ -1,302 +1,438 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { ArrowRight } from "lucide-react";
+
+import logo from "@/assets/logo.png";
+import carousel1 from "@/assets/carousel-1.webp";
+import demoGif from "@/assets/demo.gif";
+import { Header } from "@/components/Header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Header } from "@/components/Header";
-import { GraduationCap, Calendar, Users, ArrowRight } from "lucide-react";
-import carousel1 from "@/assets/carousel-1.webp";
-import carousel2 from "@/assets/carousel-2.jpeg";
-import carousel3 from "@/assets/carousel-3.jpeg";
+import { Switch } from "@/components/ui/switch";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { supabase } from "@/integrations/supabase/client";
+
+const HERO_WORDS = ["fast.", "accurate.", "effortless."];
+
+const PLANS = [
+  {
+    name: "Starter",
+    termPrice: 3500,
+    yearPrice: 9555,
+    description: "For small private primary schools",
+    features: ["Up to 20 classes", "1 admin user", "PDF export", "Email support"],
+    color: "purple",
+  },
+  {
+    name: "Growth",
+    termPrice: 7500,
+    yearPrice: 20437,
+    description: "For mid-size CBC private schools",
+    features: ["Up to 50 classes", "3 admin users", "WhatsApp support", "Onboarding call"],
+    color: "orange",
+    popular: true,
+  },
+  {
+    name: "International",
+    termPrice: 18000,
+    yearPrice: 45900,
+    description: "For international schools",
+    features: ["Unlimited classes", "Unlimited users", "Priority support", "Custom onboarding"],
+    color: "blue",
+  },
+] as const;
+
+const gradientCardClasses: Record<string, string> = {
+  purple: "bg-gradient-to-br from-secondary to-secondary/80 text-white",
+  orange: "bg-gradient-to-br from-accent to-accent/80 text-white",
+  blue: "bg-gradient-to-br from-primary to-primary/80 text-white",
+};
+
+const gradientCardStyles: Record<string, CSSProperties> = {
+  purple: {
+    boxShadow: "0 20px 45px hsl(var(--secondary) / 0.35)",
+  },
+  orange: {
+    boxShadow: "0 20px 45px hsl(var(--accent) / 0.35)",
+  },
+  blue: {
+    boxShadow: "0 20px 45px hsl(var(--primary) / 0.35)",
+  },
+};
+
+const termlyCardClasses: Record<string, string> = {
+  purple: "bg-gradient-to-br from-secondary/14 via-white to-white border-secondary/20",
+  orange: "bg-gradient-to-br from-accent/14 via-white to-white border-accent/20",
+  blue: "bg-gradient-to-br from-primary/14 via-white to-white border-primary/20",
+};
+
+const planAccentClasses: Record<string, { price: string; button: string; bullet: string }> = {
+  purple: {
+    price: "text-secondary",
+    button: "bg-secondary text-white hover:bg-secondary/90",
+    bullet: "text-secondary",
+  },
+  orange: {
+    price: "text-accent",
+    button: "bg-accent text-white hover:bg-accent/90",
+    bullet: "text-accent",
+  },
+  blue: {
+    price: "text-primary",
+    button: "bg-primary text-white hover:bg-primary/90",
+    bullet: "text-primary",
+  },
+};
+
+const FEATURES = [
+  {
+    title: "Teacher Management",
+    description: "Add teachers, assign subjects, and manage workload.",
+    color: "from-secondary to-secondary/80",
+    fill: "from-secondary via-secondary/85 to-secondary/65",
+  },
+  {
+    title: "Smart Streams",
+    description: "Organize classes and streams automatically.",
+    color: "from-accent to-accent/80",
+    fill: "from-accent via-accent/85 to-accent/65",
+  },
+  {
+    title: "Automated Timetables",
+    description: "Generate conflict-free timetables powered by AI.",
+    color: "from-primary to-primary/80",
+    fill: "from-primary via-primary/85 to-primary/65",
+  },
+] as const;
 
 const Index = () => {
   const navigate = useNavigate();
-  const [currentImage, setCurrentImage] = useState(0);
-  const carouselImages = [carousel1, carousel2, carousel3];
+  const isMobile = useIsMobile();
+  const [isYearly, setIsYearly] = useState(false);
+  const [heroWordIndex, setHeroWordIndex] = useState(0);
+  const [typedWord, setTypedWord] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [activeFeatureIndex, setActiveFeatureIndex] = useState<number | null>(null);
+  const featureRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   useEffect(() => {
-    // Check if user is already logged in
     const checkAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/dashboard");
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          navigate("/dashboard");
+        }
+      } catch (error) {
+        console.error("Error checking auth:", error);
       }
     };
-    checkAuth();
+
+    void checkAuth();
   }, [navigate]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImage((prev) => (prev + 1) % carouselImages.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [carouselImages.length]);
+    const currentWord = HERO_WORDS[heroWordIndex];
+    const atWordEnd = typedWord === currentWord;
+    const atWordStart = typedWord === "";
+
+    const timeout = window.setTimeout(
+      () => {
+        if (!isDeleting) {
+          if (atWordEnd) {
+            setIsDeleting(true);
+            return;
+          }
+
+          setTypedWord(currentWord.slice(0, typedWord.length + 1));
+          return;
+        }
+
+        if (atWordStart) {
+          setIsDeleting(false);
+          setHeroWordIndex((current) => (current + 1) % HERO_WORDS.length);
+          return;
+        }
+
+        setTypedWord(currentWord.slice(0, typedWord.length - 1));
+      },
+      !isDeleting && !atWordEnd ? 120 : !isDeleting && atWordEnd ? 1100 : 70,
+    );
+
+    return () => window.clearTimeout(timeout);
+  }, [heroWordIndex, isDeleting, typedWord]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setActiveFeatureIndex(null);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntries = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+        if (visibleEntries.length > 0) {
+          const index = Number(visibleEntries[0].target.getAttribute("data-feature-index"));
+          setActiveFeatureIndex(index);
+          return;
+        }
+
+        setActiveFeatureIndex(null);
+      },
+      {
+        threshold: [0.25, 0.5, 0.75],
+        rootMargin: "0px 0px -12% 0px",
+      },
+    );
+
+    featureRefs.current.forEach((element) => {
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, [isMobile]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-accent">
-      {/* Header Navigation */}
+    <div className="relative overflow-y-auto scroll-smooth bg-white">
       <Header />
 
-      {/* Hero Section */}
-      <main className="container mx-auto px-4 pt-24 md:pt-32 pb-20 w-full">
-        <div className="grid md:grid-cols-2 gap-12 items-center animate-fade-in">
-          {/* Left Side - Content */}
-          <div className="space-y-8">
-            <div className="space-y-4">
-              <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white leading-tight">
-                Your timetable, done in seconds.
-              </h1>
-              <p className="text-xl text-gray-600 dark:text-gray-300">
-                Generate perfect timetables in just 5 seconds with our AI-powered scheduler — fast, accurate, and built to keep you effortlessly organized.
-              </p>
-            </div>
+      <div className="relative isolate">
+        <div
+          className="brand-grid-bg-strong pointer-events-none absolute inset-x-0 top-0 z-0 h-[175vh]"
+          style={{
+            maskImage:
+              "linear-gradient(to bottom, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.92) 58%, rgba(0,0,0,0.58) 82%, transparent 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to bottom, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.92) 58%, rgba(0,0,0,0.58) 82%, transparent 100%)",
+          }}
+        />
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[175vh] bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_26%),radial-gradient(circle_at_top_right,hsl(var(--secondary)/0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.7),rgba(255,255,255,0.86)_68%,rgba(255,255,255,1)_100%)]" />
 
-            <Button
-              size="lg"
-              onClick={() => navigate("/signup")}
-              className="font-semibold text-white hover:bg-white hover:text-black transition-all text-base px-8 py-6 gap-2 rounded-full"
-            >
-              Enroll
-              <ArrowRight className="w-5 h-5" />
-            </Button>
+        <section className="relative z-10 flex min-h-screen items-center justify-center overflow-hidden bg-transparent pt-24">
+          <div className="container relative z-10 mx-auto px-4 py-20">
+            <div className="grid items-center gap-12 md:grid-cols-2">
+              <div className="space-y-8">
+                <div className="space-y-4">
+                  <h1 className="text-5xl font-bold leading-tight text-foreground md:text-6xl">
+                    Your timetable,
+                    <br />
+                    <span className="inline-flex min-h-[1.2em] items-center bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                      {typedWord}
+                      <span className="ml-1 inline-block h-[0.95em] w-[3px] animate-pulse rounded-full bg-primary" aria-hidden="true" />
+                    </span>
+                  </h1>
+                  <p className="text-xl leading-relaxed text-muted-foreground">
+                    Timetables built in seconds, so your school spends less time planning and more time
+                    on what matters most: teaching.
+                  </p>
+                </div>
+
+                <Button
+                  size="lg"
+                  onClick={() => navigate("/signup")}
+                  className="gap-2 rounded-full bg-primary px-8 py-6 text-base font-semibold text-white transition-all hover:bg-primary/90"
+                >
+                  Enroll Now
+                  <ArrowRight className="h-5 w-5" />
+                </Button>
+              </div>
+
+              <div className="relative animate-fade-in">
+                <img src={carousel1} alt="School timetable preview" className="h-auto w-full rounded-2xl shadow-2xl" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="relative z-10 flex items-center justify-center bg-transparent">
+          <div className="container mx-auto px-4 py-20">
+            <div className="mx-auto max-w-4xl text-center">
+              <div className="mb-8 overflow-hidden rounded-2xl bg-muted/90 shadow-[0_18px_45px_rgba(1,16,39,0.08)] backdrop-blur-sm">
+                <img
+                  src={demoGif}
+                  alt="ElimuTime product demo"
+                  className="h-auto w-full object-cover"
+                />
+                <div className="hidden">
+                  <div className="mb-4 text-4xl" aria-hidden="true">
+                    ▶
+                  </div>
+                  <p className="text-muted-foreground">Product video coming soon</p>
+                </div>
+              </div>
+              <h2 className="text-3xl font-bold text-foreground">Watch it build.</h2>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className="flex items-center justify-center" style={{ backgroundColor: "#001429" }}>
+        <div className="container mx-auto px-4 py-20">
+          <div className="mb-16 text-center">
+            <h2 className="text-4xl font-bold text-white">Our Features</h2>
           </div>
 
-          {/* Right Side - Carousel with Background Shape */}
-          <div className="relative h-[500px] flex items-center justify-center">
-            {/* Curved gradient background */}
-            <div className="absolute inset-0 -z-10 overflow-hidden">
-              <div 
-                className="absolute w-[600px] h-[600px] rounded-[40%] opacity-30"
-                style={{
-                  background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%)',
-                  transform: 'rotate(-15deg)',
-                  top: '-10%',
-                  right: '-10%',
-                }}
-              />
-            </div>
-            
-            {carouselImages.map((img, index) => (
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+            {FEATURES.map((feature, index) => (
               <div
-                key={index}
-                className={`absolute transition-all duration-700 rounded-2xl shadow-2xl ${
-                  index === currentImage
-                    ? "z-30 scale-100 opacity-100 translate-x-0"
-                    : index === (currentImage + 1) % carouselImages.length
-                    ? "z-20 scale-90 opacity-60 translate-x-12"
-                    : "z-10 scale-80 opacity-30 translate-x-24"
-                }`}
-                style={{
-                  width: "400px",
-                  height: "450px",
+                key={feature.title}
+                ref={(element) => {
+                  featureRefs.current[index] = element;
                 }}
+                data-feature-index={index}
               >
-                <img
-                  src={img}
-                  alt={`School scene ${index + 1}`}
-                  className="w-full h-full object-cover rounded-2xl"
-                />
+                <Card className="group relative h-[300px] overflow-hidden border-white/10 bg-white p-10 text-center shadow-lg transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl">
+                  <div
+                    className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${feature.color} transition-all duration-500 md:group-hover:w-full ${
+                      isMobile && activeFeatureIndex === index ? "w-full" : ""
+                    }`}
+                  />
+                  <div
+                    className={`absolute inset-0 origin-left scale-x-0 bg-gradient-to-r ${feature.fill} transition-transform duration-500 ease-out md:group-hover:scale-x-100 ${
+                      isMobile && activeFeatureIndex === index ? "scale-x-100" : ""
+                    }`}
+                  />
+                  <div className="relative z-10 flex h-full flex-col items-center justify-center">
+                    <h3
+                      className={`mb-4 text-2xl md:text-3xl font-bold transition-colors duration-500 ${
+                        isMobile && activeFeatureIndex === index ? "text-white" : "text-foreground md:group-hover:text-white"
+                      }`}
+                    >
+                      {feature.title}
+                    </h3>
+                    <p
+                      className={`text-base leading-7 transition-colors duration-500 ${
+                        isMobile && activeFeatureIndex === index ? "text-white/90" : "text-muted-foreground md:group-hover:text-white/90"
+                      }`}
+                    >
+                      {feature.description}
+                    </p>
+                  </div>
+                </Card>
               </div>
             ))}
           </div>
         </div>
+      </section>
 
-    {/* Features */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-20">
-  <div className="p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg card-hover text-center">
-    <div className="w-16 h-16 bg-success rounded-full flex items-center justify-center mx-auto mb-4">
-      <GraduationCap className="w-8 h-8 text-primary-foreground" />
-    </div>
-    <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">
-      Teacher Management
-    </h3>
-    <p className="text-lg text-gray-600 dark:text-gray-300 mb-2">
-      Add teachers, assign subjects, and manage workload efficiently
-    </p>
-  </div>
+      <section id="pricing" className="relative flex items-center justify-center overflow-hidden bg-white scroll-mt-28">
+        <div className="brand-grid-bg pointer-events-none absolute inset-0 z-0 opacity-100" />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.08),transparent_24%),radial-gradient(circle_at_bottom_right,hsl(var(--secondary)/0.07),transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,255,255,0.96))]" />
+        <div className="container relative z-10 mx-auto px-4 py-20">
+          <div className="mb-12 space-y-4 text-center">
+            <h2 className="text-4xl font-bold text-foreground">Simple, Transparent Pricing</h2>
+            <p className="text-xl text-muted-foreground">Choose the perfect plan for your school</p>
 
-  <div className="p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg card-hover text-center">
-    <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
-      <Users className="w-8 h-8 text-white" />
-    </div>
-    <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">
-      Smart Streams
-    </h3>
-    <p className="text-lg text-gray-600 dark:text-gray-300 mb-2">
-      Organize classes and streams automatically for all grades
-    </p>
-  </div>
+            <div className="mt-8 flex items-center justify-center gap-4">
+              <span className={`text-lg font-semibold ${!isYearly ? "text-foreground" : "text-muted-foreground"}`}>
+                Termly
+              </span>
+              <Switch
+                checked={isYearly}
+                onCheckedChange={setIsYearly}
+                aria-label="Toggle yearly pricing"
+                className="data-[state=checked]:bg-[linear-gradient(90deg,hsl(var(--primary)),hsl(var(--secondary)),hsl(var(--accent)))] data-[state=unchecked]:bg-muted"
+              />
+              <span className={`text-lg font-semibold ${isYearly ? "text-foreground" : "text-muted-foreground"}`}>
+                Yearly
+              </span>
+              {isYearly && <Badge className="bg-accent text-accent-foreground">Save up to 15%</Badge>}
+            </div>
+          </div>
 
-  <div className="p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg card-hover text-center">
-    <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-4">
-      <Calendar className="w-8 h-8 text-primary" />
-    </div>
-    <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">
-      AI Timetables
-    </h3>
-    <p className="text-lg text-gray-600 dark:text-gray-300 mb-2">
-      Generate conflict-free timetables powered by artificial intelligence
-    </p>
-  </div>
-</div>
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-3">
+            {PLANS.map((plan) => {
+              const price = isYearly ? plan.yearPrice : plan.termPrice;
+              const gradientClass = isYearly ? gradientCardClasses[plan.color] : "";
+              const gradientStyle = isYearly ? gradientCardStyles[plan.color] : undefined;
+              const accent = planAccentClasses[plan.color];
 
+              return (
+                <Card
+                  key={plan.name}
+                  className={`relative p-8 transition-all ${
+                    plan.popular && !isYearly ? "border-2 border-primary shadow-lg md:scale-105" : ""
+                  } ${isYearly ? gradientClass : `${termlyCardClasses[plan.color]} shadow-lg`}`}
+                  style={gradientStyle}
+                >
+                  {plan.popular && !isYearly && (
+                    <Badge className="absolute right-4 top-4 bg-primary text-primary-foreground">Most Popular</Badge>
+                  )}
 
-        {/* CTA Section */}
-        <div className="pt-20 pb-10">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-12 max-w-4xl mx-auto gradient-accent text-center">
-            <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">
-              Ready to transform your school's scheduling? 
-            </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 mb-2">
-              Join schools using ElimuTime to save time and improve efficiency.
-            </p>
+                  <h3 className={`mb-2 text-2xl font-bold ${isYearly ? "text-white" : "text-foreground"}`}>{plan.name}</h3>
+                  <p className={`mb-6 ${isYearly ? "text-white/80" : "text-muted-foreground"}`}>{plan.description}</p>
+
+                  <div className="mb-6">
+                    <div className="mb-1 flex items-baseline gap-1">
+                      <span className={`text-4xl font-bold ${isYearly ? "text-white" : accent.price}`}>
+                        KES {price.toLocaleString()}
+                      </span>
+                      <span className={isYearly ? "text-white/70" : "text-muted-foreground"}>
+                        /{isYearly ? "year" : "term"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <ul className={`mb-8 space-y-3 ${isYearly ? "text-white/90" : ""}`}>
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2">
+                        <span className={isYearly ? "text-white" : accent.bullet}>✓</span>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Button
+                    onClick={() => navigate("/signup")}
+                    className={`w-full rounded-full font-semibold ${
+                      isYearly ? "bg-white text-foreground hover:bg-white/90" : accent.button
+                    }`}
+                  >
+                    Get Started
+                  </Button>
+                </Card>
+              );
+            })}
           </div>
         </div>
+      </section>
 
-        {/* Billing Plans Section */}
-        <div className="pt-10 pb-20">
-          <div className="text-center space-y-2 mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Choose Your Plan</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 mb-2">
-              Select the plan that works best for your school
-            </p>
+      <footer className="bg-foreground py-12 text-white">
+        <div className="container mx-auto px-4">
+          <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-3">
+            <div className="flex flex-col items-start">
+              <img src={logo} alt="ElimuTime" className="mb-4 h-16 w-auto" />
+              <p className="text-white/70">Smart timetabling for modern schools</p>
+            </div>
+
+            <div className="text-center">
+              <p className="text-white/70">
+                Powered by{" "}
+                <a href="https://notifyai.org/" className="font-semibold text-primary hover:underline">
+                  Notify AI
+                </a>
+              </p>
+            </div>
+
+            <div className="text-right">
+              <p className="mb-2 text-white/70">
+                <a href="mailto:notifytechgroup@gmail.com" className="hover:text-white">
+                  notifytechgroup@gmail.com
+                </a>
+              </p>
+              <p className="text-white/70">© 2026 ElimuTime. All rights reserved.</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {/* Free Trial Plan */}
-            <Card className="p-6 bg-white dark:bg-gray-800 card-hover animate-slide-up relative">
-              <div className="w-12 h-12 bg-accent rounded-lg flex items-center justify-center mb-4">
-                <ArrowRight className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Free Trial</h3>
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-primary">KES 0</span>
-                <span className="text-gray-600 dark:text-gray-400 text-sm">/14 days</span>
-              </div>
-              <ul className="space-y-3 mb-6">
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Up to 5 teachers</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Up to 3 streams</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Basic timetable generation</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Email support</span>
-                </li>
-              </ul>
-              <Button
-                onClick={() => navigate("/signup")}
-                className="font-semibold w-full text-white hover:bg-white hover:text-primary rounded-full"
-              >
-                Get Started
-              </Button>
-            </Card>
-
-            {/* Basic Plan (featured, center) */}
-            <Card className="p-8 bg-white dark:bg-gray-800 card-hover animate-slide-up relative md:order-2 transform md:scale-105 shadow-xl" style={{ animationDelay: '100ms' }}>
-              <Badge className="absolute top-4 right-4 bg-primary">Most Popular</Badge>
-              <div className="w-12 h-12 bg-success rounded-lg flex items-center justify-center mb-4">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Basic</h3>
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-primary">KES 2,500</span>
-                <span className="text-gray-600 dark:text-gray-400 text-sm">/per month</span>
-              </div>
-              <ul className="space-y-3 mb-6">
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Up to 20 teachers</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Unlimited streams</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>AI timetable generation</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Priority email support</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Export to PDF</span>
-                </li>
-              </ul>
-              <Button
-                onClick={() => navigate("/signup")}
-                className="font-semibold w-full text-white hover:bg-white hover:text-primary rounded-full"
-              >
-                Get Started
-              </Button>
-            </Card>
-
-            {/* Premium Plan */}
-            <Card className="p-6 bg-white dark:bg-gray-800 card-hover animate-slide-up relative" style={{ animationDelay: '200ms' }}>
-              <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mb-4">
-                <Calendar className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Premium</h3>
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-primary">KES 5,000</span>
-                <span className="text-gray-600 dark:text-gray-400 text-sm">/per month</span>
-              </div>
-              <ul className="space-y-3 mb-6">
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Unlimited teachers</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Unlimited streams</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Advanced AI optimization</span>
-                </li>              <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Priority support</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Export to PDF/Excel</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Email timetables to teachers</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <GraduationCap className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                  <span>Custom branding</span>
-                </li>
-              </ul>
-              <Button
-                onClick={() => navigate("/signup")}
-                className="font-semibold w-full text-white hover:bg-white hover:text-primary rounded-full"
-              >
-                Get Started
-              </Button>
-            </Card>
+          <div className="border-t border-white/10 pt-8 text-center text-sm text-white/60">
+            <p>Crafted with precision for educational excellence</p>
           </div>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="container mx-auto px-4 py-8 border-t border-gray-200 dark:border-gray-700">
-        <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-          <p>© 2025 ElimuTime. All rights reserved.</p>
         </div>
       </footer>
     </div>

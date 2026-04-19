@@ -247,13 +247,13 @@ const Teachers = () => {
   <motion.div
     initial={{ y: -20, opacity: 0 }}
     animate={{ y: 0, opacity: 1 }}
-    className="flex items-center justify-between w-full"
+    className="flex w-full flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
   >
     {/* Back Button (Left) */}
-    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex justify-start">
       <Button
         variant="outline"
-        onClick={() => navigate("/Streams")}
+        onClick={() => navigate("/streams")}
         className="gap-2 font-semibold rounded-full"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -262,8 +262,8 @@ const Teachers = () => {
     </motion.div>
 
     {/* Centered Title + Subtitle */}
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-black flex items-center justify-center gap-3">
+    <div className="order-first px-1 text-center lg:order-none">
+      <h1 className="flex items-center justify-center gap-3 text-2xl font-bold text-black sm:text-3xl">
         <motion.div
           whileHover={{ rotate: 360 }}
           transition={{ duration: 0.6 }}
@@ -277,15 +277,22 @@ const Teachers = () => {
       </p>
     </div>
 
-    {/* Next Button (Right) */}
-    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
       <Button
-        onClick={() => navigate("/timetables")}
-        className="bg-[#FACC15] text-[#0D3C44] hover:bg-[#F5BD0D] font-semibold gap-2 rounded-full"
+        onClick={() => setShowForm(true)}
+        className="w-full gap-2 rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
       >
-        Next →
+        + Add Teacher
       </Button>
-    </motion.div>
+      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+        <Button
+          onClick={() => navigate("/timetables")}
+          className="w-full gap-2 rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
+        >
+          Next →
+        </Button>
+      </motion.div>
+    </div>
   </motion.div>
 
 
@@ -437,11 +444,11 @@ const Teachers = () => {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-4">
+              <div className="flex flex-col gap-2 pt-4 sm:flex-row">
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-[#FACC15] text-[#00000] hover:bg-[#F5BD0D] font-semibold rounded-full"
+                  className="flex-1 rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0]"
                 >
                   {loading ? (
                     <>
@@ -456,6 +463,7 @@ const Teachers = () => {
                   type="button"
                   variant="outline"
                   onClick={() => setShowForm(false)}
+                  className="rounded-full sm:w-auto"
                 >
                   Cancel
                 </Button>
@@ -586,7 +594,7 @@ const Teachers = () => {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <Card className="p-12 text-center glass">
+            <Card className="p-6 text-center glass sm:p-12">
             <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-xl font-semibold mb-2">No teachers yet</h3>
             <p className="text-muted-foreground mb-4">
