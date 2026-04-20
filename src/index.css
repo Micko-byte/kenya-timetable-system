@@ -158,6 +158,32 @@ All colors MUST be HSL.
   .animate-scale-in {
     animation: scaleIn 0.3s ease-out;
   }
+
+  .feature-flip-card {
+    perspective: 1600px;
+  }
+
+  .feature-flip-card-inner {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .feature-flip-card:hover .feature-flip-card-inner,
+  .feature-flip-card:focus-within .feature-flip-card-inner {
+    transform: rotateY(180deg);
+  }
+
+  .feature-flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  .feature-flip-face-back {
+    transform: rotateY(180deg);
+  }
 }
 
 @keyframes fadeIn {

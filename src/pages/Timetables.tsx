@@ -496,7 +496,7 @@ const Timetables = () => {
           <div className="text-center">
             <h1 className="text-3xl font-bold inline-flex items-center gap-3" style={{ fontFamily: "Recoleta, serif", color: "rgb(13, 60, 68)" }}>
               <Calendar className="w-8 h-8" />
-              AI Timetable Studio
+               Timetable Studio
             </h1>
             <p className="text-muted-foreground mt-2 mx-auto max-w-3xl">
               Generate, edit, and export Kenyan school timetables using the current ElimuTime theme.

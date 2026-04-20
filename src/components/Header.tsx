@@ -60,11 +60,12 @@ export const Header = () => {
         }}
       >
         <div
-          className={`mx-auto rounded-full px-4 sm:px-6 lg:px-8 transition-all duration-300 ${
+          className={`relative mx-auto rounded-full px-4 sm:px-6 lg:px-8 transition-all duration-300 ${
             hasScrolled ? "max-w-5xl" : "max-w-7xl"
           }`}
           style={{
-            background: "rgba(3, 7, 18, 0.6)",
+            background:
+              "linear-gradient(to top, rgba(0, 20, 41, 0.92) 0%, rgba(0, 20, 41, 0.52) 48%, rgba(3, 7, 18, 0.36) 100%)",
             backdropFilter: "blur(12px)",
             padding: hasScrolled ? "0.45rem 1.15rem" : "0.65rem 1.25rem",
             boxShadow: hasScrolled ? "0 16px 40px rgba(3, 7, 18, 0.14)" : "none",
@@ -76,7 +77,11 @@ export const Header = () => {
               className="flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-200"
               onClick={() => navigate("/")}
             >
-              <img src={logo} alt="ElimuTime logo" className="h-12 w-auto md:h-16 flex-shrink-0 object-contain" />
+              <img
+                src={logo}
+                alt="ElimuTime logo"
+                className={`w-auto flex-shrink-0 object-contain ${isHomePage ? "h-10 md:h-14" : "h-12 md:h-16"}`}
+              />
             </div>
 
             {/* Desktop Navigation - Center */}

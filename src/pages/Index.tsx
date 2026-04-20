@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
 import logo from "@/assets/logo.svg";
-import carousel1 from "@/assets/carousel-1.webp";
+import heroImage from "@/assets/hero.png";
 import demoGif from "@/assets/demo.gif";
 import teacherIcon from "@/assets/feature-teacher.svg";
 import streamIcon from "@/assets/feature-stream.svg";
@@ -92,22 +92,31 @@ const FEATURES = [
     title: "Teacher Management",
     description: "Add teachers, assign subjects, and manage workload.",
     icon: teacherIcon,
-    cardClass: "bg-gradient-to-br from-secondary via-secondary/90 to-secondary/75",
-    iconShellClass: "",
+    color: "purple",
+    revealLabel: "On the flip side",
+    revealTitle: "See staffing at a glance",
+    revealDescription: "Hover to reveal a cleaner view of who teaches what, where the gaps are, and how workloads stay balanced.",
+    highlights: ["Load balance snapshots", "Subject ownership clarity", "Quick staffing confidence"],
   },
   {
     title: "Smart Streams",
     description: "Organize classes and streams automatically.",
     icon: streamIcon,
-    cardClass: "bg-gradient-to-br from-accent via-accent/90 to-accent/75",
-    iconShellClass: "",
+    color: "orange",
+    revealLabel: "Behind the card",
+    revealTitle: "Turn structure into flow",
+    revealDescription: "The back view shows how streams line up neatly so classes, rooms, and learning groups stay easy to follow.",
+    highlights: ["Stream grouping cues", "Clear room planning", "Less manual reshuffling"],
   },
   {
     title: "Automated Timetables",
     description: "Generate conflict-free timetables powered by AI.",
     icon: timetableIcon,
-    cardClass: "bg-gradient-to-br from-primary via-primary/90 to-primary/75",
-    iconShellClass: "",
+    color: "blue",
+    revealLabel: "What opens up",
+    revealTitle: "From draft to done faster",
+    revealDescription: "Flip the card to imagine a timetable that resolves clashes quickly and leaves your team reviewing, not rebuilding.",
+    highlights: ["Conflict-aware layouts", "Faster first drafts", "More time for review"],
   },
 ] as const;
 
@@ -183,8 +192,8 @@ const Index = () => {
         />
         <div className="pointer-events-none absolute inset-x-0 top-0 bottom-0 z-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_26%),radial-gradient(circle_at_top_right,hsl(var(--secondary)/0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.7),rgba(255,255,255,0.86)_68%,rgba(255,255,255,1)_100%)]" />
 
-        <section className="relative z-10 flex min-h-screen items-center justify-center overflow-hidden bg-transparent pt-24">
-          <div className="container relative z-10 mx-auto px-4 py-20">
+        <section className="relative z-10 flex min-h-screen items-center justify-center overflow-hidden bg-transparent pt-24 md:pt-10">
+          <div className="container relative z-10 mx-auto px-4 py-12 md:py-10">
             <div className="grid items-center gap-12 md:grid-cols-2">
               <div className="space-y-8">
                 <div className="space-y-4">
@@ -212,8 +221,12 @@ const Index = () => {
                 </Button>
               </div>
 
-              <div className="relative animate-fade-in">
-                <img src={carousel1} alt="School timetable preview" className="h-auto w-full rounded-2xl shadow-2xl" />
+              <div className="relative flex h-full items-end justify-center animate-fade-in">
+                <img
+                  src={heroImage}
+                  alt="School timetable preview"
+                  className="h-auto max-h-[360px] w-full max-w-[320px] rounded-2xl object-contain md:max-h-[760px] md:max-w-[700px]"
+                />
               </div>
             </div>
           </div>
@@ -259,16 +272,67 @@ const Index = () => {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {FEATURES.map((feature) => (
-                <div key={feature.title}>
-                  <Card className={`relative flex h-[320px] flex-col items-center justify-center overflow-hidden border-0 p-10 text-center text-white shadow-[0_24px_60px_rgba(1,16,39,0.18)] transition-transform duration-300 hover:-translate-y-1.5 rounded-none ${feature.cardClass}`}>
-                    <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
-                      <div className={`mb-6 flex h-20 w-20 items-center justify-center rounded-2xl p-4 ${feature.iconShellClass}`}>
-                        <img src={feature.icon} alt="" aria-hidden="true" className="h-full w-full object-contain" />
+                <div key={feature.title} className="feature-flip-card h-[430px] md:h-[360px]">
+                  <div className="feature-flip-card-inner h-full">
+                    <Card
+                      className={`feature-flip-face feature-flip-face-front relative flex h-full flex-col items-center justify-center overflow-hidden rounded-none border-0 p-7 text-center text-white shadow-[0_24px_60px_rgba(1,16,39,0.18)] md:p-10 ${
+                        feature.color === "purple"
+                          ? "bg-gradient-to-br from-secondary via-secondary/90 to-secondary/75"
+                          : feature.color === "orange"
+                            ? "bg-gradient-to-br from-accent via-accent/90 to-accent/75"
+                            : "bg-gradient-to-br from-primary via-primary/90 to-primary/75"
+                      }`}
+                    >
+                      <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
+                        <div className="space-y-5 md:space-y-6">
+                          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/12 p-3 md:h-20 md:w-20 md:p-4">
+                            <img src={feature.icon} alt="" aria-hidden="true" className="h-full w-full object-contain" />
+                          </div>
+                          <div className="space-y-3">
+                            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
+                              Core feature
+                            </p>
+                            <h3 className="text-xl font-bold md:text-3xl">{feature.title}</h3>
+                            <p className="max-w-[18rem] text-sm leading-6 text-white/70 md:text-base md:leading-7">{feature.description}</p>
+                          </div>
+                        </div>
+              
                       </div>
-                      <h3 className="mb-4 text-2xl font-bold  md:text-3xl">{feature.title}</h3>
-                      <p className="max-w-[18rem] text-base leading-7 text-white/70">{feature.description}</p>
-                    </div>
-                  </Card>
+                    </Card>
+
+                    <Card className={`feature-flip-face feature-flip-face-back overflow-hidden border rounded-none shadow-lg ${termlyCardClasses[feature.color]}`}>
+                      <div className="flex h-full flex-col justify-between p-3.5 text-left md:p-6">
+                        <div className="space-y-2.5 md:space-y-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] md:text-xs ${planAccentClasses[feature.color].price}`}>
+                                {feature.revealLabel}
+                              </p>
+                              <h3 className="mt-1.5 max-w-[11rem] text-[15px] font-bold leading-5 text-foreground md:mt-2 md:max-w-none md:text-xl md:leading-6">{feature.revealTitle}</h3>
+                            </div>
+                            <div className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold md:px-3 md:text-[11px] ${planAccentClasses[feature.color].button}`}>
+                              Live preview
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] leading-4 text-muted-foreground md:text-sm md:leading-6">{feature.revealDescription}</p>
+
+                          <div className="space-y-1 md:space-y-2">
+                            {feature.highlights.map((highlight) => (
+                              <div key={highlight} className="flex items-center gap-2">
+                                <span className={`inline-flex h-2 w-2 shrink-0 rounded-full ${feature.color === "purple" ? "bg-secondary" : feature.color === "orange" ? "bg-accent" : "bg-primary"}`} />
+                                <span className="text-[11px] font-medium leading-4 text-foreground md:text-sm">{highlight}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-2 rounded-2xl border border-white/70 bg-white/70 px-3 py-2 text-[10px] leading-4 text-muted-foreground md:mt-4 md:px-4 md:py-3 md:text-xs md:leading-5">
+                          Built to replace last-minute timetable fixes with calmer reviews and quicker decisions.
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
                 </div>
               ))}
             </div>

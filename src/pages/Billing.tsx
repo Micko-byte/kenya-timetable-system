@@ -112,22 +112,7 @@ const Billing = () => {
     }
   };
 
-  const activateFreeTrial = async () => {
-    try {
-      const { error } = await supabase.from("subscriptions").upsert({
-        school_id: schoolId,
-        plan_type: "free_trial",
-        status: "active",
-        expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      });
 
-      if (error) throw error;
-      toast.success("Free trial activated.");
-      await fetchSubscription();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to activate the free trial");
-    }
-  };
 
   const verifyReference = async (reference: string) => {
     try {
@@ -152,10 +137,7 @@ const Billing = () => {
       return;
     }
 
-    if (planType === "free_trial") {
-      await activateFreeTrial();
-      return;
-    }
+
 
     try {
       setCheckingOut(planType);
@@ -202,9 +184,9 @@ const Billing = () => {
     color: string;
     cta: string;
   }> = [
-    { type: "free_trial", icon: Zap, color: "bg-muted", cta: "Start Trial" },
-    { type: "basic", icon: Check, color: "bg-success", cta: "Pay with Paystack" },
-    { type: "premium", icon: Crown, color: "bg-primary", cta: "Pay with Paystack" },
+    { type: "starter", icon: Zap, color: "bg-secondary", cta: "Subscribe" },
+    { type: "growth", icon: Crown, color: "bg-accent", cta: "Subscribe" },
+    { type: "international", icon: Crown, color: "bg-primary", cta: "Subscribe" },
   ];
 
   return (
@@ -315,7 +297,7 @@ const Billing = () => {
 
                 <div className="mb-4">
                   <span className="text-3xl font-bold text-primary">
-                    {plan.type === "free_trial" ? "KES 0" : `KES ${(planDetails.amount / 100).toLocaleString()}`}
+                    {`KES ${(planDetails.amount / 100).toLocaleString()}`}
                   </span>
                   <span className="text-muted-foreground text-sm">/{planDetails.period}</span>
                 </div>
@@ -417,3 +399,5 @@ const Billing = () => {
 };
 
 export default Billing;
+
+
