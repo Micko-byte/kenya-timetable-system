@@ -1,4 +1,4 @@
-export type PaystackPlanType = "free_trial" | "basic" | "premium";
+export type PaystackPlanType = "starter" | "growth" | "international";
 export type PaymentChannel = "card" | "mobile_money";
 
 export interface PaystackPlan {
@@ -7,29 +7,31 @@ export interface PaystackPlan {
   period: string;
   description: string;
   features: string[];
+  popular?: boolean;
 }
 
 export const PAYSTACK_PLANS: Record<PaystackPlanType, PaystackPlan> = {
-  free_trial: {
-    name: "Free Trial",
-    amount: 0,
-    period: "14 days",
-    description: "Try ElimuTime before you commit.",
-    features: ["Up to 5 teachers", "Up to 3 streams", "Basic timetable generation", "Email support"],
+  starter: {
+    name: "Starter",
+    amount: 350000,
+    period: "per term",
+    description: "For small private primary schools",
+    features: ["Up to 20 classes", "1 admin user", "PDF export", "Email support"],
   },
-  basic: {
-    name: "Basic",
-    amount: 250000,
-    period: "monthly",
-    description: "For growing schools that need AI timetable generation.",
-    features: ["Up to 20 teachers", "Unlimited streams", "AI timetable generation", "Priority email support", "Export to PDF"],
+  growth: {
+    name: "Growth",
+    amount: 750000,
+    period: "per term",
+    description: "For mid-size CBC private schools",
+    features: ["Up to 50 classes", "3 admin users", "WhatsApp support", "Onboarding call"],
+    popular: true,
   },
-  premium: {
-    name: "Premium",
-    amount: 500000,
-    period: "monthly",
-    description: "Advanced scheduling with full exports and branding.",
-    features: ["Unlimited teachers", "Unlimited streams", "Advanced AI optimization", "Priority support", "Export to PDF/Excel", "Email timetables to teachers", "Custom branding"],
+  international: {
+    name: "International",
+    amount: 1800000,
+    period: "per term",
+    description: "For international schools",
+    features: ["Unlimited classes", "Unlimited users", "Priority support", "Custom onboarding"],
   },
 };
 

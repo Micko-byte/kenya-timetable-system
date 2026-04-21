@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import logo from "@/assets/logo.svg";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -94,9 +95,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.08),transparent_24%),radial-gradient(circle_at_top_right,hsl(var(--secondary)/0.08),transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,248,255,0.96))]">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full border-b border-primary/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-4">
             <button
@@ -109,7 +110,13 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                 <Menu className="h-6 w-6" />
               )}
             </button>
-            <h1 className="text-xl font-bold text-primary">Admin Portal</h1>
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="ElimuTime logo" className="h-12 w-auto object-contain flex-shrink-0" />
+              <div>
+                <h1 className="text-xl font-bold text-primary">Admin Portal</h1>
+                <p className="text-xs text-muted-foreground">ElimuTime</p>
+              </div>
+            </div>
           </div>
 
           {/* Desktop Navigation */}
@@ -122,8 +129,8 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                 className={({ isActive }) =>
                   `flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent"
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-[hsl(var(--primary)/0.2)]"
+                      : "hover:bg-accent/10"
                   }`
                 }
               >
@@ -137,12 +144,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             <span className="hidden sm:inline text-sm text-muted-foreground">
               {adminEmail}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="gap-2"
-            >
+            <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2 border-primary/20 hover:bg-primary/5">
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Logout</span>
             </Button>
@@ -151,7 +153,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <nav className="lg:hidden border-t bg-background p-4 space-y-2">
+          <nav className="lg:hidden border-t border-primary/10 bg-background p-4 space-y-2">
             {menuItems.map((item) => (
               <NavLink
                 key={item.path}
@@ -162,7 +164,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                   `flex items-center gap-3 px-4 py-3 rounded-md transition-colors ${
                     isActive
                       ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent"
+                      : "hover:bg-accent/10"
                   }`
                 }
               >

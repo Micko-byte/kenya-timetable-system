@@ -65,7 +65,7 @@ export default function TimetableCell({
   if (editing) {
     return (
       <td
-        className={`${bgClass} p-0.5 border border-border/50 ${compact ? "min-w-[44px] max-w-[50px]" : "min-w-[68px]"} h-[48px]`}
+        className={`${bgClass} p-0.5 border border-border/70 ${compact ? "min-w-[44px] max-w-[50px]" : "min-w-[68px]"} h-[48px]`}
         style={bgStyle}
       >
         <div className="flex flex-col gap-1">
@@ -103,7 +103,7 @@ export default function TimetableCell({
   return (
     <td
       onClick={() => setEditing(true)}
-      className={`${bgClass} ${textColor} px-0.5 py-1 border ${colorless ? "border-border" : "border-background/30"} ${compact ? "min-w-[44px] max-w-[50px]" : "min-w-[74px]"} min-h-[52px] cursor-pointer hover:opacity-80 transition-opacity text-center select-none`}
+      className={`${bgClass} ${textColor} px-0.5 py-1 border ${colorless ? "border-border" : "border-border/80"} ${compact ? "min-w-[44px] max-w-[50px]" : "min-w-[74px]"} min-h-[52px] cursor-pointer hover:opacity-80 transition-opacity text-center select-none`}
       style={bgStyle}
     >
       <div className={`font-black ${compact ? "text-[8px]" : "text-[10px]"} leading-tight tracking-wide`}>{mnemonic || "-"}</div>

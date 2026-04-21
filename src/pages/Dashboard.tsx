@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { TemplateSelector } from "@/components/TemplateSelector";
-import { SchoolTypeSelector } from "@/components/SchoolTypeSelector";
 import { PastTimetableUpload } from "@/components/PastTimetableUpload";
 import Threads from "@/components/effects/Threads";
 import { getCurrentSchoolSession } from "@/lib/session";
@@ -30,7 +29,6 @@ const Dashboard = () => {
     timetables: 0,
   });
   const [schoolId, setSchoolId] = useState<string>("");
-  const [subscription, setSubscription] = useState<any>(null);
   const [currentTemplate, setCurrentTemplate] = useState<string>("classic");
 
   useEffect(() => {
@@ -55,7 +53,7 @@ const Dashboard = () => {
       }
 
         // Fetch stats
-        const [teachersCount, streamsCount, timetablesCount, subData] =
+        const [teachersCount, streamsCount, timetablesCount] =
           await Promise.all([
             supabase
               .from("teachers")
@@ -69,11 +67,6 @@ const Dashboard = () => {
               .from("timetables")
               .select("*", { count: "exact", head: true })
               .eq("school_id", session.schoolId),
-            supabase
-              .from("subscriptions")
-              .select("*")
-              .eq("school_id", session.schoolId)
-              .single(),
           ]);
 
         setStats({
@@ -81,8 +74,6 @@ const Dashboard = () => {
           streams: streamsCount.count || 0,
           timetables: timetablesCount.count || 0,
         });
-
-        setSubscription(subData.data);
     };
 
     fetchDashboardData();
@@ -93,7 +84,7 @@ const Dashboard = () => {
       title: "Streams & Classes",
       count: stats.streams,
       icon: BookOpen,
-      color: "bg-success",
+      color: "from-primary to-primary/80",
       path: "/streams",
       description: "Configure grades and streams",
     },
@@ -101,7 +92,7 @@ const Dashboard = () => {
       title: "Teachers",
       count: stats.teachers,
       icon: Users,
-      color: "bg-primary",
+      color: "from-secondary to-secondary/80",
       path: "/teachers",
       description: "Manage your teaching staff",
     },
@@ -109,7 +100,7 @@ const Dashboard = () => {
       title: "Timetables",
       count: stats.timetables,
       icon: Calendar,
-      color: "bg-primary",
+      color: "from-accent to-accent/80",
       path: "/timetables",
       description: "Generate AI timetables",
     },
@@ -117,27 +108,28 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
+      <div className="space-y-6 md:space-y-8">
         {/* Powered by Notify AI Badge */}
         <div className="text-center mb-2">
          <a
             href="https://notifyai.org"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block text-xs text-white font-medium tracking-wide bg-[hsl(189,67%,16%)] px-4 py-2 rounded-full hover:opacity-90 transition"
+            className="inline-block text-xs text-white font-medium tracking-wide bg-[hsl(var(--foreground))] px-4 py-2 rounded-full hover:opacity-90 transition shadow-lg shadow-[hsl(var(--foreground)/0.18)]"
           >
             Powered by Notify
           </a>
         </div>
 
         {/* Welcome Section */}
-        <div className="relative text-center space-y-4">
+        <div className="relative space-y-4 text-center">
           <div className="relative">
-           <h1 className="text-4xl md:text-5xl font-bold text-black drop-shadow-lg">
-            Welcome to your Dashboard
-          </h1>
+            <div className="mx-auto mb-4 h-1.5 w-32 rounded-full bg-[linear-gradient(90deg,hsl(var(--primary)),hsl(var(--secondary)),hsl(var(--accent)))]" />
+            <h1 className="text-3xl font-bold text-foreground sm:text-4xl md:text-5xl">
+              Welcome to your Dashboard
+            </h1>
 
-            <p className="text-lg text-black max-w-2xl mx-auto mt-4 drop-shadow">
+            <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground sm:text-lg">
               Manage your school's timetabling with the power of AI. Let's create
               the perfect schedule for your students and teachers.
             </p>
@@ -146,7 +138,7 @@ const Dashboard = () => {
               <Button
                 size="lg"
                 onClick={() => navigate("/streams")}
-                className="bg-[#FECD32] text-[#00000] hover:bg-[#F5BD0D] text-base transition-all gap-2 mt-6 shadow-2xl hover:shadow-2xl font-semibold rounded-full"
+                className="text-base transition-all gap-2 mt-6 shadow-2xl hover:shadow-2xl font-semibold rounded-full gradient-primary text-white hover:opacity-90"
               >
                 Get Started
                 <ArrowRight className="w-5 h-5" />
@@ -156,29 +148,29 @@ const Dashboard = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
           {cards.map((card) => (
             <div key={card.title}>
               <Card
-                className="p-6 cursor-pointer group card-hover relative overflow-hidden bg-white/95 backdrop-blur-sm border-white/20"
+                className="group card-hover relative flex min-h-[188px] cursor-pointer flex-col overflow-hidden border-primary/10 bg-white/95 p-5 shadow-[0_18px_40px_rgba(1,16,39,0.06)] backdrop-blur-sm hover:-translate-y-1 sm:min-h-[208px] sm:p-6"
                 onClick={() => navigate(card.path)}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-[0_0_30px_rgba(59,130,246,0.6)]" />
-                <div className="relative z-10">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`w-12 h-12 ${card.color} rounded-lg flex items-center justify-center float`}>
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-[0_0_30px_hsl(var(--primary)/0.2)]" />
+                <div className="relative z-10 flex h-full flex-col">
+                  <div className="mb-4 flex items-start justify-between">
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} shadow-lg sm:h-12 sm:w-12`}>
                       <card.icon className="w-6 h-6 text-white" />
                     </div>
-                    <ArrowRight className="w-5 h-5 text-primary group-hover:text-blue-500 transition-colors" />
+                    <ArrowRight className="w-5 h-5 text-primary group-hover:text-accent transition-colors" />
                   </div>
-                  <h2 className="text-2xl font-bold text-foreground mb-1">
+                  <h2 className="mb-1 text-2xl font-bold text-foreground sm:text-[1.75rem]">
                     {card.count}
                   </h2>
-                  <p className="text-base font-semibold text-black mb-1">
+                  <p className="mb-1 text-base font-semibold text-foreground sm:text-lg">
                     {card.title}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="mt-auto text-sm leading-6 text-muted-foreground">
                     {card.description}
                   </p>
                 </div>
@@ -187,25 +179,22 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* School Configuration */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="hover:shadow-[0_0_40px_rgba(59,130,246,0.7)] transition-all duration-300 rounded-lg">
-            <SchoolTypeSelector />
-          </div>
-          <div className="hover:shadow-[0_0_40px_rgba(59,130,246,0.7)] transition-all duration-300 rounded-lg md:col-span-1">
+        {/* Uploads */}
+        <div className="grid grid-cols-1 gap-6">
+          <div className="rounded-lg transition-all duration-300 hover:shadow-[0_0_40px_hsl(var(--secondary)/0.22)]">
             <PastTimetableUpload />
           </div>
         </div>
 
         {/* Template Selector with Threads */}
-        <div className="relative">
-          <div className="absolute inset-0 z-0 h-[700px] pointer-events-none">
+        <div className="relative overflow-hidden rounded-[2rem]">
+          <div className="pointer-events-none absolute inset-0 z-0">
             <div className="absolute inset-0 opacity-100">
               <Threads
                 amplitude={2.5}
                 distance={0}
                 enableMouseInteraction={true}
-                color="#3b82f6"
+                color="#2196f3"
               />
             </div>
             <div className="absolute inset-0 opacity-80">
@@ -221,7 +210,7 @@ const Dashboard = () => {
                 amplitude={1.5}
                 distance={0}
                 enableMouseInteraction={true}
-                color="#86efac"
+                color="#ae00ff"
               />
             </div>
           </div>
@@ -233,41 +222,6 @@ const Dashboard = () => {
             />
           </div>
         </div>
-
-
-        {/* Subscription Status */}
-        {subscription && (
-          <div>
-            <Card className="p-6 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-primary/20" />
-              <div className="relative z-10 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-primary mb-2 flex items-center gap-2">
-                    <Calendar className="w-5 h-5" />
-                    Subscription Status
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Plan: <span className="font-semibold">{subscription.plan_type}</span>
-                  </p>
-                  {subscription.expires_at && (
-                    <p className="text-sm text-muted-foreground">
-                      Expires:{" "}
-                      {new Date(subscription.expires_at).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Button
-                    onClick={() => navigate("/billing")}
-                    className="bg-[#FACC15] text-[#0D3C44] hover:bg-[#F5BD0D] font-semibold"
-                  >
-                    Manage Plan
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
       </div>
     </DashboardLayout>
   );

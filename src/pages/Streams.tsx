@@ -6,6 +6,16 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getCurrentSchoolSession } from "@/lib/session";
@@ -30,6 +40,8 @@ const Streams = () => {
   const [schoolId, setSchoolId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [streamToDelete, setStreamToDelete] = useState<Stream | null>(null);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [formData, setFormData] = useState({
     firstGrade: "",
     lastGrade: "",
@@ -132,6 +144,24 @@ const Streams = () => {
     }
   };
 
+  const handleDeleteAll = async () => {
+    try {
+      const { error } = await supabase
+        .from("streams")
+        .delete()
+        .eq("school_id", schoolId);
+
+      if (error) throw error;
+
+      toast.success("All streams deleted");
+      setDeleteAllOpen(false);
+      setStreamToDelete(null);
+      await fetchStreams();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete streams");
+    }
+  };
+
   const groupedStreams = streams.reduce((acc, stream) => {
     if (!acc[stream.grade]) {
       acc[stream.grade] = [];
@@ -139,21 +169,22 @@ const Streams = () => {
     acc[stream.grade].push(stream);
     return acc;
   }, {} as Record<number, Stream[]>);
+  const hasStreams = Object.keys(groupedStreams).length > 0;
 
   return (
     <DashboardLayout>
       <motion.div
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
-  className="space-y-6"
+  className="space-y-6 min-h-[80vh] text-foreground"
 >
   <motion.div
     initial={{ y: -20, opacity: 0 }}
     animate={{ y: 0, opacity: 1 }}
-    className="flex items-center justify-between w-full"
+    className="flex w-full flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
   >
     {/* Back Button (Left) */}
-    <div>
+    <div className="flex justify-start">
       <Button
         variant="outline"
         onClick={() => navigate("/dashboard")}
@@ -165,8 +196,8 @@ const Streams = () => {
     </div>
 
     {/* Centered Title + Subtitle */}
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-black flex items-center justify-center gap-3">
+    <div className="order-first px-1 text-center lg:order-none">
+      <h1 className="flex items-center justify-center gap-3 text-2xl font-bold text-black sm:text-3xl">
         <BookOpen className="w-8 h-8" />
         Streams & Classes
       </h1>
@@ -175,11 +206,27 @@ const Streams = () => {
       </p>
     </div>
 
-    {/* Next Button (Right) */}
-    <div>
+    {/* Right Action Buttons */}
+    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
+      {hasStreams && (
+        <Button
+          variant="outline"
+          onClick={() => setDeleteAllOpen(true)}
+          className="w-full gap-2 rounded-full border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete All
+        </Button>
+      )}
+      <Button
+        onClick={() => setShowForm(true)}
+        className="w-full gap-2 rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
+      >
+        + Add Streams
+      </Button>
       <Button
         onClick={() => navigate("/teachers")}
-        className="bg-[#FACC15] text-[#000000] hover:bg-[#F5BD0D] text-base gap-2 font-semibold rounded-full"
+        className="w-full gap-2 rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
       >
         Next →
       </Button>
@@ -195,8 +242,8 @@ const Streams = () => {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <Card className="p-6 glass shimmer">
-            <h2 className="text-xl font-semibold mb-4">Create Streams</h2>
+              <Card className="p-6 bg-white border-primary/10 shadow-[0_18px_40px_rgba(1,16,39,0.06)]">
+            <h2 className="text-xl font-semibold text-foreground mb-4">Create Streams</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -252,7 +299,7 @@ const Streams = () => {
                 <p className="text-sm text-muted-foreground mb-2">
                   Preview:
                 </p>
-                <p className="font-semibold">
+                <p className="font-semibold text-foreground">
                   {formData.firstGrade && formData.lastGrade && formData.streamNames
                     ? `Will create ${
                         (parseInt(formData.lastGrade) - parseInt(formData.firstGrade) + 1) *
@@ -262,11 +309,11 @@ const Streams = () => {
                 </p>
               </div>
 
-              <div className="flex gap-2 pt-4">
+              <div className="flex flex-col gap-2 pt-4 sm:flex-row">
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-[#FACC15] text-[#000000] hover:bg-[#F5BD0D] font-semibold rounded-full"
+                  className="flex-1 rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0]"
                 >
                   {loading ? (
                     <>
@@ -281,6 +328,7 @@ const Streams = () => {
                   type="button"
                   variant="outline"
                   onClick={() => setShowForm(false)}
+                  className="rounded-full sm:w-auto"
                 >
                   Cancel
                 </Button>
@@ -291,91 +339,109 @@ const Streams = () => {
           )}
         </AnimatePresence>
 
-        {Object.keys(groupedStreams).length > 0 ? (
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: { opacity: 0 },
-              visible: {
-                opacity: 1,
-                transition: { staggerChildren: 0.1 },
-              },
-            }}
-            className="space-y-6"
-          >
-            <AnimatePresence mode="popLayout">
+        <section className="rounded-[2rem] border border-primary/10 bg-white/92 p-6 shadow-[0_18px_40px_rgba(1,16,39,0.06)]">
+          {hasStreams ? (
+            <div className="space-y-6">
               {Object.entries(groupedStreams)
                 .sort(([a], [b]) => parseInt(a) - parseInt(b))
-                .map(([grade, gradeStreams], index) => (
-                  <motion.div
-                    key={grade}
-                    variants={{
-                      hidden: { opacity: 0, x: -20 },
-                      visible: { opacity: 1, x: 0 },
-                    }}
-                    exit={{ opacity: 0, x: 20 }}
-                  >
-                    <Card className="p-6 relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                .map(([grade, gradeStreams]) => (
+                  <div key={grade}>
+                    <Card className="relative overflow-hidden border-primary/10 bg-white p-6 shadow-[0_12px_30px_rgba(1,16,39,0.05)]">
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 transition-opacity hover:opacity-100" />
                       <div className="relative z-10">
-                        <h3 className="text-xl font-bold text-primary mb-4">
+                        <h3 className="mb-4 text-xl font-bold text-primary">
                           Grade {grade}
                         </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
                           {gradeStreams.map((stream) => (
-                            <motion.div
+                            <div
                               key={stream.id}
-                              whileHover={{ scale: 1.05 }}
-                              transition={{ type: "spring", stiffness: 400 }}
-                              className="flex items-center justify-between p-3 bg-secondary rounded-lg hover:bg-accent transition-colors group/item"
+                              className="group/item flex flex-col items-start gap-2 rounded-xl border border-primary/10 bg-[hsl(var(--secondary)/0.12)] p-3 sm:flex-row sm:items-center sm:justify-between"
                             >
-                              <Badge variant="outline" className="font-semibold">
+                              <Badge variant="outline" className="max-w-full border-primary/20 bg-white font-semibold text-foreground">
                                 {stream.stream_name}
                               </Badge>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleDelete(stream.id)}
-                                className="opacity-0 group-hover/item:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setStreamToDelete(stream)}
+                                className="text-destructive opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
                       </div>
                     </Card>
-                  </motion.div>
+                  </div>
                 ))}
-            </AnimatePresence>
-          </motion.div>
-        ) : (
-          !showForm && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
-            >
-              <Card className="p-12 text-center glass">
-              <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-xl font-semibold mb-2">
-                No streams configured yet
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                Create your first stream to organize classes
-              </p>
-              <Button
-                onClick={() => setShowForm(true)}
-                className="rounded-full gradient-primary text-white"
+            </div>
+          ) : (
+            !showForm && (
+              <div className="flex min-h-[320px] items-center justify-center">
+                <Card className="w-full max-w-2xl border-primary/10 bg-white p-6 text-center shadow-[0_12px_30px_rgba(1,16,39,0.05)] sm:p-12">
+                  <BookOpen className="mx-auto mb-4 h-16 w-16 text-primary" />
+                  <h3 className="mb-2 text-2xl font-semibold text-foreground">
+                    No streams configured yet
+                  </h3>
+                  <p className="mb-6 text-muted-foreground">
+                    Create your first stream to organize classes and unlock timetable generation.
+                  </p>
+                  <Button
+                    onClick={() => setShowForm(true)}
+                    className="rounded-full gradient-primary text-white"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Your First Streams
+                  </Button>
+                </Card>
+              </div>
+            )
+          )}
+        </section>
+
+        <AlertDialog open={!!streamToDelete} onOpenChange={(open) => !open && setStreamToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete stream?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {streamToDelete
+                  ? `This will permanently remove ${streamToDelete.stream_name} from Grade ${streamToDelete.grade}.`
+                  : "This will permanently remove the selected stream."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => streamToDelete && handleDelete(streamToDelete.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Streams
-              </Button>
-            </Card>
-            </motion.div>
-          )
-        )}
+                Delete Stream
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete all streams?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove every stream and class for your school. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteAll}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete All Streams
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </motion.div>
     </DashboardLayout>
   );
