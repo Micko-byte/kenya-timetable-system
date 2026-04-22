@@ -7,9 +7,20 @@ export interface SchoolSession {
 }
 
 export async function getCurrentSchoolSession(): Promise<SchoolSession | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: { id: string } | null = null;
+  try {
+    const {
+      data: { user: nextUser },
+    } = await supabase.auth.getUser();
+    user = nextUser;
+  } catch (error: any) {
+    const message = String(error?.message || "");
+    if (message.toLowerCase().includes("invalid refresh token")) {
+      await supabase.auth.signOut();
+      return null;
+    }
+    throw error;
+  }
 
   if (!user) {
     return null;
