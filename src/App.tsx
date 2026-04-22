@@ -17,6 +17,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminSchools from "./pages/admin/AdminSchools";
 import AdminSchoolDetail from "./pages/admin/AdminSchoolDetail";
 import AdminTemplates from "./pages/admin/AdminTemplates";
+import AdminTemplateEditor from "./pages/admin/AdminTemplateEditor";
 import AdminTimetables from "./pages/admin/AdminTimetables";
 import AdminBilling from "./pages/admin/AdminBilling";
 
@@ -37,6 +38,7 @@ const App = () => {
              <Route path="/signup" element={<Auth isSignUp={true} />} />
              <Route path="/role-selection" element={<RoleSelection />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/welcome" element={<Dashboard />} />
             <Route path="/teachers" element={<Teachers />} />
             <Route path="/streams" element={<Streams />} />
             <Route path="/timetables" element={<Timetables />} />
@@ -46,6 +48,8 @@ const App = () => {
             <Route path="/admin/schools" element={<AdminSchools />} />
             <Route path="/admin/schools/:schoolId" element={<AdminSchoolDetail />} />
             <Route path="/admin/templates" element={<AdminTemplates />} />
+            <Route path="/admin/templates/:id/edit" element={<AdminTemplateEditor />} />
+            <Route path="/admin/templates/new" element={<AdminTemplateEditor />} />
             <Route path="/admin/timetables" element={<AdminTimetables />} />
             <Route path="/admin/billing" element={<AdminBilling />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

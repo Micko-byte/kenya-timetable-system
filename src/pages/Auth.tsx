@@ -44,6 +44,25 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const isInvalidRefreshTokenError = (error: unknown) => {
+    const message = String((error as any)?.message || "");
+    return message.toLowerCase().includes("invalid refresh token");
+  };
+
+  const signInWithPasswordRecovering = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) return;
+
+    if (isInvalidRefreshTokenError(error)) {
+      await supabase.auth.signOut();
+      const retry = await supabase.auth.signInWithPassword({ email, password });
+      if (retry.error) throw retry.error;
+      return;
+    }
+
+    throw error;
+  };
+
   const handleSendOtp = async () => {
     if (!resetData.email) {
       toast.error("Please enter your email address");
@@ -134,12 +153,7 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
-
-        if (error) throw error;
+        await signInWithPasswordRecovering(formData.email, formData.password);
         
         // Check user role from database
         const { data: { user } } = await supabase.auth.getUser();
@@ -177,12 +191,7 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
 
         if (createError) throw createError;
 
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
-
-        if (signInError) throw signInError;
+        await signInWithPasswordRecovering(formData.email, formData.password);
 
         // Check user role from database (only proceed if we have a session)
         const { data: { user } } = await supabase.auth.getUser();
@@ -199,12 +208,35 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
           navigate("/dashboard");
         }
         toast.success("Registration successful! Welcome aboard! 🎉");
+        
+        // Conditional redirect based on email
+        if (formData.email === "leemwangi250@gmail.com") {
+          navigate("/admin");
+        } else {
+          navigate("/dashboard");
+        }
       }
     } catch (error: any) {
-      toast.error(error.message || "An error occurred");
+      let message = "An error occurred";
+      
+      if (error.context && typeof error.context.json === 'function') {
+        try {
+          const body = await error.context.json();
+          message = body.error || body.message || message;
+        } catch (e) {
+          message = error.message || message;
+        }
+      } else {
+        message = error.message || message;
+      }
+
+      toast.error(message);
+      console.error("Full Auth Error:", error);
     } finally {
       setLoading(false);
     }
+
+
   };
 
   return (

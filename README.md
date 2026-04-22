@@ -1,119 +1,109 @@
-# ElimuTime
+# ElimuTime - School Enrollment & Payment System Setup
 
-ElimuTime is a React + Supabase school timetabling app for Kenyan schools. It covers school onboarding, teacher and stream setup, timetable generation, template management, downloads, and billing.
+This guide explains how to set up and fix the backend for the ElimuTime system.
 
-## What The App Does
+## 1. Supabase Database Setup
 
-- Landing page with product marketing and enrollment CTA
-- Auth flow for sign in, sign up, and password reset
-- School dashboard with stats, templates, and setup widgets
-- Teacher and stream management
-- Timetable studio with editable generated timetables
-- Printable timetable header with editable school, class, term, and year fields
-- PDF, PNG, JPEG, and Excel exports
-- Admin template management
-- Billing page with Paystack checkout and payment verification flow
-- Payment activity history inside the app
+### Run SQL Migrations
+Run this in your **Supabase SQL Editor** to fix table schemas and enrollment triggers:
 
-## Main Routes
+```sql
+-- Fix the subscriptions table
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS plan text;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS plan_type text;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
 
-- `/` landing page
-- `/auth` sign in
-- `/signup` sign up
-- `/role-selection` role routing
-- `/dashboard` school dashboard
-- `/teachers` teacher management
-- `/streams` stream/class management
-- `/timetables` timetable studio
-- `/billing` billing and payments
-- `/admin` admin dashboard
-- `/admin/templates` template management
-- `/admin/timetables` generated timetable admin view
-- `/admin/users` users admin
-- `/admin/schools` schools admin
-- `/admin/schools/:schoolId` school detail admin
-- `/admin/billing` admin billing
+-- Update the Enrollment Trigger
+CREATE OR REPLACE FUNCTION public.handle_new_school_enrollment()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  new_school_id uuid;
+  school_name text;
+  school_type text;
+  contact_name text;
+BEGIN
+  -- Extract metadata
+  school_name := nullif(trim(coalesce(new.raw_user_meta_data ->> 'school_name', '')), '');
+  IF school_name IS NULL THEN school_name := 'New School'; END IF;
 
-## Key Features
+  school_type := nullif(trim(coalesce(new.raw_user_meta_data ->> 'school_type', '')), '');
+  contact_name := nullif(trim(coalesce(new.raw_user_meta_data ->> 'full_name', '')), '');
 
-### Timetable Studio
+  -- Create school
+  INSERT INTO public.schools (name, type)
+  VALUES (school_name, school_type)
+  RETURNING id INTO new_school_id;
 
-- Generate timetables from your teachers, subjects, streams, and selected template
-- Edit timetable cells directly in the grid
-- Edit the printed header fields:
-  - school name
-  - class
-  - term
-  - year
-- Save timetable changes back to Supabase
-- Export to PDF, PNG, JPEG, and Excel
-- Email timetable payloads to teachers
+  -- Create profile
+  INSERT INTO public.profiles (id, school_id, email, full_name)
+  VALUES (new.id, new_school_id, new.email, contact_name)
+  ON CONFLICT (id) DO UPDATE SET school_id = excluded.school_id;
 
-### Billing
+  -- Assign admin role
+  INSERT INTO public.user_roles (user_id, school_id, role)
+  VALUES (new.id, new_school_id, 'admin')
+  ON CONFLICT DO NOTHING;
 
-- Free trial, Basic, and Premium plans
-- Paystack checkout for paid plans
-- Server-side payment verification through Supabase Edge Functions
-- Subscription updates after successful verification
-- Payment activity history in the billing page
+  -- Create subscription (Handles both column name variants)
+  INSERT INTO public.subscriptions (school_id, plan, plan_type, status, expires_at)
+  VALUES (new_school_id, 'free_trial', 'free_trial', 'active', now() + interval '14 days')
+  ON CONFLICT DO NOTHING;
 
-### Admin Tools
+  RETURN new;
+END;
+$$;
+```
 
-- Create, edit, deploy, and delete timetable templates
-- View all generated timetables across schools
-- Inspect school-level data and user access
+## 2. Edge Functions Setup (Dashboard Method)
 
-## Environment Variables
+If you are copy-pasting code directly into the Supabase Dashboard, you **MUST** use the "Self-Contained" versions of the code to avoid "Module not found" errors.
 
-Frontend `.env`:
+### Set Secrets
+Go to **Edge Functions** -> **Settings** -> **Secrets** and add:
+*   `SERVICE_ROLE_KEY`: Your project's `service_role` key.
+*   `SUPABASE_URL`: Your project URL.
 
+### Update Settings
+For **`auth-signup`** and **`paystack-init`**:
+*   **Verify JWT**: Turn this **OFF**.
+
+---
+
+## 3. Local Environment (`.env`)
 ```env
-VITE_SUPABASE_URL="https://your-project.supabase.co"
-VITE_SUPABASE_PUBLISHABLE_KEY="your publishable key"
-VITE_SUPABASE_FUNCTIONS_URL="https://your-project.supabase.co/functions/v1"
-VITE_PAYSTACK_PUBLIC_KEY="your Paystack public key"
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_PAYSTACK_PUBLIC_KEY=pk_test_your-key
 ```
 
-Supabase Edge Function secrets:
+## 4. Redirect Rules
+*   **Super Admin**: `leemwangi250@gmail.com` -> Redirects to `/admin`.
+*   **School Owners**: All others -> Redirects to `/dashboard`.
 
-```env
-PAYSTACK_SECRET_KEY="your Paystack secret key"
-SUPABASE_SERVICE_ROLE_KEY="your Supabase service role key"
-SUPABASE_URL="https://your-project.supabase.co"
-```
+---
 
-Do not put `PAYSTACK_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` in the frontend.
+## 5. Timetable Template System Setup
 
-## Paystack Integration
+We have integrated a dynamic timetable template system. To set it up, follow these steps:
 
-The billing flow is designed like this:
+### A. Run Database Migration
+Execute the SQL in `supabase/migrations/20260422_04_timetable_templates.sql` to create the necessary tables, types, and RLS policies.
 
-1. The billing page sends a checkout request to a Supabase Edge Function.
-2. The Edge Function creates a pending `payment_transactions` row and returns a reference.
-3. The browser opens Paystack inline using the public key, so the payment stays inside the app.
-4. The user chooses card or mobile money in the popup.
-5. When the payment succeeds, the app sends the reference to a verification Edge Function.
-6. The verification function confirms the transaction with Paystack, updates `payment_transactions` and `subscriptions`, and queues a receipt notification.
+### B. Seed Default Templates
+Execute the SQL in `supabase/seed_templates.sql` to populate the gallery with the 10 professional designs.
 
-## Database Notes
+### C. Admin Access
+1.  Log in with the super-admin email: `leemwangi250@gmail.com`.
+2.  Go to the **Template Management** tab in the Admin Dashboard.
+3.  Here you can create, edit, or publish master templates for different school levels.
 
-The app expects the Supabase baseline migration to be applied, plus the timetable header columns used by the editable studio:
-
-- `timetables.class_name`
-- `timetables.term`
-- `timetables.academic_year`
-- `payment_transactions`
-- `payment_notifications`
-
-The billing screen also reads payment activity from `activity_logs` entries with `activity_type = 'payment'`.
-
-## Local Development
-
-```sh
-npm install
-npm run dev
-```
-
-## Project Docs
-
-For deeper database SQL, template mapping, and deployment notes, see [`DOCUMENTATION.md`](./DOCUMENTATION.md).
+### D. School Features
+1.  Schools can use the **Full Timetable Creator** at `/timetables`.
+2.  Select your education level (Pre-Primary, Primary, Junior Secondary, etc.) to load defaults.
+3.  Fully customize the grid, days, and periods.
+4.  Export to **PDF** or **Excel** directly.
+5.  Toggle between **Color** and **B&W** modes for printing.

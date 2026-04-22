@@ -98,7 +98,20 @@ const AdminDashboard = () => {
   const [schoolsWithTemplates, setSchoolsWithTemplates] = useState<SchoolWithTemplate[]>([]);
 
   useEffect(() => {
+    const checkAdminAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || user.email !== "leemwangi250@gmail.com") {
+        toast.error("Unauthorized access to Admin Dashboard");
+        navigate("/dashboard");
+        return false;
+      }
+      return true;
+    };
+
     const fetchAdminStats = async () => {
+      const hasAccess = await checkAdminAccess();
+      if (!hasAccess) return;
+
       setLoading(true);
       try {
         const now = new Date();

@@ -1,908 +1,287 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { useState, useCallback, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Download, RotateCcw, FileText, GraduationCap, Plus, X, Palette } from 'lucide-react';
+import SchoolHeader from '@/features/timetable/components/SchoolHeader';
+import TimetableGridComponent from '@/features/timetable/components/TimetableGrid';
+import SubjectManager from '@/features/timetable/components/SubjectManager';
+import DesignSelector from '@/features/timetable/components/DesignSelector';
+import FontSelector, { FONT_OPTIONS } from '@/features/timetable/components/FontSelector';
 import {
-  ArrowLeft,
-  Bell,
-  Calendar,
-  Download,
-  Eye,
-  Loader2,
-  Mail,
-  Plus,
-  Save,
-  Search,
-  Trash2,
-  Crown,
-  CreditCard,
-} from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
-import { getCurrentSchoolSession } from "@/lib/session";
-import { PAYSTACK_PLANS } from "@/lib/paystack";
-import {
-  createGridForLevel,
-  DEFAULT_DAYS,
-  DESIGN_THEMES,
-  EDUCATION_LEVELS,
-  LEVEL_PERIODS,
-  type CellData,
-  type DesignTheme,
-  type EducationLevel,
-  type PeriodSlot,
-  type TimetableGrid as StudioGrid,
-  parseTimetableJSON,
-} from "@/lib/timetableData";
-import { exportTimetableToPdf } from "@/lib/exportToPdf";
-import { exportTimetableToXls } from "@/lib/exportToXls";
-import {
-  exportTimetableFile,
-  emailTimetablesToTeachers,
-} from "@/pages/timetableExport";
-import {
-  generateStreamTimetable,
-  type GeneratorTeacher,
-  type GeneratorStream,
-} from "@/lib/timetable-generator";
-import SchoolHeader from "@/components/SchoolHeader";
-import TimetableGrid from "@/components/TimetableGrid";
-import DesignSelector from "@/components/DesignSelector";
-import FontSelector, { FONT_OPTIONS } from "@/components/FontSelector";
-import SubjectManager from "@/components/SubjectManager";
+  createGridForLevel, CellData, TimetableGrid, DesignTheme, parseTimetableJSON,
+  EducationLevel, EDUCATION_LEVELS, LEVEL_PERIODS, PeriodSlot, getSubjectsByLevel,
+  DEFAULT_DAYS, ALL_DAYS,
+} from '@/features/timetable/lib/timetableData';
+import { exportTimetableToXls } from '@/features/timetable/lib/exportToXls';
+import { exportTimetableToPdf } from '@/features/timetable/lib/exportToPdf';
+import { useToast } from '@/hooks/use-toast';
+import DashboardLayout from '@/components/DashboardLayout';
 
-interface TimetableRow {
-  id: string;
-  school_id: string;
-  stream_id: string;
-  template_id: string | null;
-  template_type: string | null;
-  class_name: string | null;
-  term: string | null;
-  academic_year: string | null;
-  generated_by: string | null;
-  generated_at: string;
-  status: "draft" | "final" | "exported";
-  timetable_data: any[];
-  streams?: {
-    grade: number;
-    stream_name: string;
-  };
-  templates?: {
-    id: string;
-    name: string;
-  } | null;
-}
-
-// Local template using DESIGN_THEMES
-type LocalTemplate = {
-  id: DesignTheme;
-  name: string;
-  theme: DesignTheme;
-};
-
-interface BellScheduleData {
-  totalLessons: number;
-  lessonDurationMinutes: number;
-  schoolStartTime: string;
-  breaks: Array<{
-    id: string;
-    label: string;
-    afterLesson: number;
-    durationMinutes: number;
-  }>;
-}
-
-const DEFAULT_TEMPLATE_NAME = "Monochrome";
-
-type ActiveLevel = Exclude<EducationLevel, "common">;
-
-function getLevelFromGrade(grade?: number): ActiveLevel {
-  if (!grade) return "eight_four_four";
-  if (grade <= 2) return "pre_primary";
-  if (grade <= 3) return "lower_primary";
-  if (grade <= 6) return "upper_primary";
-  if (grade <= 9) return "junior_secondary";
-  if (grade <= 12) return "senior_secondary";
-  return "eight_four_four";
-}
-
-function getTimetableLabel(timetable: TimetableRow) {
-  if (!timetable.streams) return "Unknown Stream";
-  const templateName = timetable.templates?.name
-    ? ` • ${timetable.templates.name}`
-    : timetable.template_id
-      ? ` • Template ${timetable.template_id.slice(0, 8)}`
-      : "";
-  return `Grade ${timetable.streams.grade} - ${timetable.streams.stream_name}${templateName}`;
-}
-
-function getHeaderClassName(timetable: TimetableRow | null): string {
-  if (!timetable?.streams) return "Class";
-  return timetable.class_name?.trim() || `Grade ${timetable.streams.grade} - ${timetable.streams.stream_name}`;
-}
-
-function getHeaderTerm(timetable: TimetableRow | null): string {
-  return timetable?.term?.trim() || "Term 1";
-}
-
-function getHeaderYear(timetable: TimetableRow | null): string {
-  return timetable?.academic_year?.trim() || new Date().getFullYear().toString();
-}
-
-function getThemeFromTemplateType(templateType: string | null): DesignTheme {
-  if (templateType && templateType in DESIGN_THEMES) {
-    return templateType as DesignTheme;
-  }
-  return "classic";
-}
-
-function buildGridFromTimetable(
-  timetable: TimetableRow | null,
-  days: string[],
-  periods: PeriodSlot[]
-): StudioGrid {
-  const base = days.map(() => periods.map(() => ({ subject: "", teacher: "" })));
-  if (!timetable?.timetable_data) return base;
-
-  timetable.timetable_data.forEach((entry: any) => {
-    const dayIdx = Math.max(0, (entry.day_of_week ?? 1) - 1);
-    const periodIdx = Math.max(0, (entry.period_number ?? 1) - 1);
-    if (!base[dayIdx] || !base[dayIdx][periodIdx]) return;
-    base[dayIdx][periodIdx] = {
-      subject: entry.subject_name ?? entry.subject ?? "",
-      teacher: entry.teacher_name ?? entry.teacher ?? "",
-    };
-  });
-
-  return base;
-}
+type ActiveLevel = Exclude<EducationLevel, 'common'>;
+const LEVELS: { key: ActiveLevel; defaultSchool: string; defaultClass: string }[] = [
+  { key: 'pre_primary', defaultSchool: 'Brightstone Schools Pre-School', defaultClass: 'PP2' },
+  { key: 'lower_primary', defaultSchool: 'Brightstone Schools Primary', defaultClass: 'Grade 2' },
+  { key: 'upper_primary', defaultSchool: 'Brightstone Schools Primary', defaultClass: 'Grade 5' },
+  { key: 'junior_secondary', defaultSchool: 'Brightstone Schools Junior Secondary', defaultClass: 'Grade 8' },
+  { key: 'senior_secondary', defaultSchool: 'Brightstone Schools Senior School', defaultClass: 'Grade 11 - STEM' },
+  { key: 'eight_four_four', defaultSchool: 'Brightstone Schools Secondary', defaultClass: 'Form 2A' },
+];
 
 const Timetables = () => {
-  const navigate = useNavigate();
-  const [schoolId, setSchoolId] = useState("");
-  const [schoolName, setSchoolName] = useState("ElimuTime School");
-  const [userId, setUserId] = useState("");
-  const [timetables, setTimetables] = useState<TimetableRow[]>([]);
-  const [streams, setStreams] = useState<GeneratorStream[]>([]);
-  const [teachers, setTeachers] = useState<GeneratorTeacher[]>([]);
-  const [subjects, setSubjects] = useState<string[]>([]);
-  const [currentTheme, setCurrentTheme] = useState<DesignTheme>("monochrome");
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTimetableId, setSelectedTimetableId] = useState<string | null>(null);
-  const [headerClassName, setHeaderClassName] = useState("Class");
-  const [headerTerm, setHeaderTerm] = useState("Term 1");
-  const [headerYear, setHeaderYear] = useState(new Date().getFullYear().toString());
-
-  const [theme, setTheme] = useState<DesignTheme>("classic");
+  const { toast } = useToast();
+  const [activeLevel, setActiveLevel] = useState<ActiveLevel>('eight_four_four');
+  const [schoolName, setSchoolName] = useState('Brightstone Schools Secondary');
   const [fontFamily, setFontFamily] = useState(FONT_OPTIONS[0].value);
+  const [className, setClassName] = useState('Form 2A');
+  const [term, setTerm] = useState('Term 1');
+  const [year, setYear] = useState('2026');
   const [days, setDays] = useState<string[]>([...DEFAULT_DAYS]);
   const [periods, setPeriods] = useState<PeriodSlot[]>([...LEVEL_PERIODS.eight_four_four]);
-  const [grid, setGrid] = useState<StudioGrid>(() => createGridForLevel("eight_four_four"));
+  const [grid, setGrid] = useState<TimetableGrid>(() => createGridForLevel('eight_four_four'));
+  const [theme, setTheme] = useState<DesignTheme>('classic_kenya');
   const [customSubjects, setCustomSubjects] = useState<string[]>([]);
   const [colorless, setColorless] = useState(false);
   const [rowColors, setRowColors] = useState<Record<number, string>>({});
   const [colColors, setColColors] = useState<Record<number, string>>({});
 
-  // Subscription state for payment checks
-  const [subscription, setSubscription] = useState<{ plan_type: string; status: string; expires_at: string | null } | null>(null);
-  const [checkingSubscription, setCheckingSubscription] = useState(false);
+  const switchLevel = (level: ActiveLevel) => {
+    const info = LEVELS.find((l) => l.key === level)!;
+    setActiveLevel(level);
+    setSchoolName(info.defaultSchool);
+    setClassName(info.defaultClass);
+    const newPeriods = [...LEVEL_PERIODS[level]];
+    setPeriods(newPeriods);
+    setDays([...DEFAULT_DAYS]);
+    const newGrid = createGridForLevel(level, newPeriods);
+    setGrid(newGrid);
+    toast({ title: `${EDUCATION_LEVELS[level].emoji} ${EDUCATION_LEVELS[level].label}`, description: 'Template loaded.' });
+  };
 
-  useEffect(() => {
-    void fetchData();
-  }, []);
+  const addDay = () => {
+    const available = ALL_DAYS.filter(d => !days.includes(d));
+    if (available.length === 0) return;
+    const newDay = available[0];
+    setDays(prev => [...prev, newDay]);
+    setGrid(prev => [...prev, periods.map(() => ({ subject: '', teacher: '' }))]);
+  };
 
-  useEffect(() => {
-    if (!selectedTimetableId && timetables.length > 0) {
-      setSelectedTimetableId(timetables[0].id);
-    }
-  }, [selectedTimetableId, timetables]);
+  const removeDay = (idx: number) => {
+    if (days.length <= 1) return;
+    setDays(prev => prev.filter((_, i) => i !== idx));
+    setGrid(prev => prev.filter((_, i) => i !== idx));
+  };
 
-  useEffect(() => {
-    const selected = selectedTimetableId
-      ? timetables.find((item) => item.id === selectedTimetableId)
-      : timetables[0] || null;
-
-    setHeaderClassName(getHeaderClassName(selected));
-    setHeaderTerm(getHeaderTerm(selected));
-    setHeaderYear(getHeaderYear(selected));
-  }, [selectedTimetableId, timetables]);
-
-  const parseTime = (timeStr: string): Date => {
-  const [hours, minutes] = timeStr.split(":").map(Number);
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
-  return date;
-};
-
-const addMinutes = (date: Date, minutes: number): Date => {
-  return new Date(date.getTime() + minutes * 60000);
-};
-
-const formatTime = (date: Date): string => {
-  return date.toTimeString().slice(0, 5);
-};
-
-const convertBellScheduleToPeriods = (bellSchedule: BellScheduleData): PeriodSlot[] => {
-  const periods: PeriodSlot[] = [];
-  let currentTime = parseTime(bellSchedule.schoolStartTime);
-
-  // Sort breaks by afterLesson
-  const sortedBreaks = [...bellSchedule.breaks].sort((a, b) => a.afterLesson - b.afterLesson);
-  const breakMap = new Map(sortedBreaks.map((b) => [b.afterLesson, b]));
-
-  for (let i = 1; i <= bellSchedule.totalLessons; i++) {
-    // Check if there's a break before this lesson
-    const breakConfig = breakMap.get(i - 1);
-    if (breakConfig && i > 1) {
-      // Add break as a period slot
-      const breakStart = new Date(currentTime);
-      const breakEnd = addMinutes(breakStart, breakConfig.durationMinutes);
-      periods.push({
-        time: `${formatTime(breakStart)}-${formatTime(breakEnd)}`,
-        label: breakConfig.label,
+  const handleCellChange = useCallback(
+    (dayIdx: number, periodIdx: number, data: CellData) => {
+      setGrid((prev) => {
+        const next = prev.map((row) => [...row]);
+        next[dayIdx][periodIdx] = data;
+        return next;
       });
-      currentTime = breakEnd;
-    }
+    },
+    []
+  );
 
-    // Add lesson period
-    const lessonStart = new Date(currentTime);
-    const lessonEnd = addMinutes(lessonStart, bellSchedule.lessonDurationMinutes);
-    periods.push({
-      time: `${formatTime(lessonStart)}-${formatTime(lessonEnd)}`,
-      label: `Lesson ${i}`,
-    });
-    currentTime = lessonEnd;
-  }
-
-  return periods;
-};
-
-const fetchData = async () => {
-    setLoading(true);
-    try {
-      const session = await getCurrentSchoolSession();
-      if (!session) {
-        navigate("/auth");
-        return;
-      }
-
-      setSchoolId(session.schoolId);
-      setUserId(session.userId);
-
-      const [
-        schoolResult,
-        streamsResult,
-        subjectsResult,
-        teachersResult,
-        timetablesResult,
-        subscriptionResult,
-      ] = await Promise.all([
-        supabase.from("schools").select("name, timetable_template, bell_schedule").eq("id", session.schoolId).single(),
-        supabase
-          .from("streams")
-          .select("id, grade, stream_name")
-          .eq("school_id", session.schoolId)
-          .order("grade", { ascending: true })
-          .order("stream_name", { ascending: true }),
-        supabase.from("subjects").select("name").eq("school_id", session.schoolId).order("name"),
-        supabase
-          .from("teachers")
-          .select(`
-            id,
-            name,
-            teacher_subjects(subject_id, subjects(name)),
-            teacher_assigned_classes(stream_id),
-            teacher_responsibilities(stream_id)
-          `)
-          .eq("school_id", session.schoolId),
-        supabase
-          .from("timetables")
-          .select(`
-            *,
-            streams(grade, stream_name),
-            templates(id, name)
-          `)
-          .eq("school_id", session.schoolId)
-          .order("generated_at", { ascending: false }),
-        supabase
-          .from("subscriptions")
-          .select("plan_type, status, expires_at")
-          .eq("school_id", session.schoolId)
-          .single(),
-      ]);
-
-      if (schoolResult.error) throw schoolResult.error;
-      if (streamsResult.error) throw streamsResult.error;
-      if (subjectsResult.error) throw subjectsResult.error;
-      if (teachersResult.error) throw teachersResult.error;
-      if (timetablesResult.error) throw timetablesResult.error;
-
-      // Set subscription (allow null for new schools)
-      setSubscription(subscriptionResult.data || null);
-
-      setSchoolName(schoolResult.data?.name || "ElimuTime School");
-      
-      // Use local theme from school setting or default to monochrome
-      const schoolTheme = (schoolResult.data?.timetable_template as DesignTheme) || "";
-      const validTheme = schoolTheme in DESIGN_THEMES ? schoolTheme : "monochrome";
-      const activeTheme = validTheme as DesignTheme;
-      
-      setCurrentTheme(activeTheme);
-      setTheme(activeTheme);
-      
-      // Save default if none set
-      if (!validTheme) {
-        await supabase
-          .from("schools")
-          .update({ timetable_template: "monochrome" })
-          .eq("id", session.schoolId);
-      }
-
-      // Load bell schedule and convert to periods (bell schedule takes precedence)
-      const bellSchedule = schoolResult.data?.bell_schedule as BellScheduleData | null;
-      if (bellSchedule) {
-        const bellPeriods = convertBellScheduleToPeriods(bellSchedule);
-        setPeriods(bellPeriods);
-      }
-
-      setStreams((streamsResult.data || []) as GeneratorStream[]);
-      setSubjects((subjectsResult.data || []).map((item) => item.name));
-      setTimetables((timetablesResult.data || []) as TimetableRow[]);
-      setTeachers(
-        (teachersResult.data || []).map((teacher: any) => ({
-          id: teacher.id,
-          name: teacher.name,
-          subjects:
-            teacher.teacher_subjects?.map((entry: any) => entry.subjects?.name).filter(Boolean) || [],
-          assignedStreamIds: Array.from(
-            new Set([
-              ...(teacher.teacher_assigned_classes?.map((entry: any) => entry.stream_id) || []),
-              ...(teacher.teacher_responsibilities?.map((entry: any) => entry.stream_id) || []),
-            ].filter(Boolean))
-          ),
-        }))
-      );
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load timetables");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Local templates list for UI
-  const LOCAL_TEMPLATES: LocalTemplate[] = [
-    { id: "monochrome", name: "Monochrome (B&W)", theme: "monochrome" },
-    { id: "kenyan", name: "Kenyan Flag", theme: "kenyan" },
-    { id: "classic", name: "Classic Kenya", theme: "classic" },
-    { id: "modern", name: "Modern Glass", theme: "modern" },
-    { id: "vibrant", name: "Vibrant Colors", theme: "vibrant" },
-    { id: "midnight", name: "Midnight Black", theme: "midnight" },
-    { id: "slate", name: "Slate Pro", theme: "slate" },
-  ];
-
-  const filteredTimetables = useMemo(() => {
-    if (!searchQuery.trim()) return timetables;
-    return timetables.filter((timetable) =>
-      getTimetableLabel(timetable).toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [searchQuery, timetables]);
-
-  const selectedTimetable =
-    timetables.find((item) => item.id === selectedTimetableId) ?? timetables[0] ?? null;
-
-  useEffect(() => {
-    if (!selectedTimetable) return;
-
-    const nextDays = [...DEFAULT_DAYS];
-    setDays(nextDays);
-    // Only set default periods if we don't have bell schedule periods already
-    setPeriods((currentPeriods) => {
-      if (currentPeriods && currentPeriods.length > 0) {
-        return currentPeriods; // Keep bell schedule periods
-      }
-      const level = getLevelFromGrade(selectedTimetable.streams?.grade);
-      return [...LEVEL_PERIODS[level]];
-    });
-    setGrid((currentGrid) => {
-      const newPeriods = periods.length > 0 ? periods : LEVEL_PERIODS[getLevelFromGrade(selectedTimetable.streams?.grade)];
-      return buildGridFromTimetable(selectedTimetable, nextDays, newPeriods);
-    });
-    setTheme(getThemeFromTemplateType(selectedTimetable.template_type));
-    setRowColors({});
-    setColColors({});
-    setCustomSubjects([]);
-  }, [selectedTimetable]);
-
-  const handleGenerate = async () => {
-    if (!schoolId) return toast.error("School information is missing.");
-    if (streams.length === 0) return toast.error("Create streams first before generating timetables.");
-    if (teachers.length === 0) return toast.error("Add teachers first before generating timetables.");
-
-    setGenerating(true);
-    try {
-      const payload = streams.map((stream) => {
-        // Use current periods and days
-        const templatePeriods = periods;
-        const templateDays = days;
-        
-        const generated = generateStreamTimetable({
-          stream,
-          teachers,
-          fallbackSubjects: subjects,
-        });
-
-        return {
-          school_id: schoolId,
-          stream_id: stream.id,
-          template_id: null,
-          template_type: theme,
-          class_name: headerClassName,
-          term: headerTerm,
-          academic_year: headerYear,
-          generated_by: userId,
-          generated_at: new Date().toISOString(),
-          status: generated.status,
-          timetable_data: generated.timetable_data,
-          // Store elimutime template config
-          template_config: {
-            days: templateDays,
-            periods: templatePeriods,
-            theme: theme,
-            font_family: fontFamily,
-            colorless: colorless,
-          }
-        };
+  const handlePeriodChange = useCallback(
+    (periodIdx: number, slot: PeriodSlot) => {
+      setPeriods((prev) => {
+        const next = [...prev];
+        next[periodIdx] = slot;
+        return next;
       });
+    },
+    []
+  );
 
-      const { error } = await supabase.from("timetables").upsert(payload, { onConflict: "school_id,stream_id" });
-      if (error) throw error;
-
-      toast.success("Timetables generated and saved successfully.");
-      setSelectedTimetableId(null);
-      await fetchData();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to generate timetables");
-    } finally {
-      setGenerating(false);
-    }
+  const handleExportXls = () => {
+    exportTimetableToXls(grid, schoolName, className, term, year, periods);
+    toast({ title: 'Exported!', description: 'Downloaded as Excel file.' });
   };
 
-  const handleSaveStudio = async () => {
-    if (!selectedTimetable) return toast.error("Choose a timetable to save.");
-
-    setSaving(true);
+  const handleExportPdf = async () => {
     try {
-      const teacherByName = new Map(teachers.map((teacher) => [teacher.name.toLowerCase(), teacher.id]));
-      const entries = days.flatMap((day, dayIdx) =>
-        periods.map((period, periodIdx) => {
-          const cell = grid[dayIdx]?.[periodIdx] ?? { subject: "", teacher: "" };
-          const teacherId = teacherByName.get(cell.teacher.toLowerCase()) ?? cell.teacher.toLowerCase().replace(/\s+/g, "-");
-
-          return {
-            id: `${selectedTimetable.stream_id}-${dayIdx + 1}-${periodIdx + 1}`,
-            period_id: `${dayIdx + 1}-${periodIdx + 1}`,
-            day_of_week: dayIdx + 1,
-            subject_id: cell.subject.toLowerCase().replace(/\s+/g, "-"),
-            subject_name: cell.subject || period.label,
-            teacher_id: teacherId || "unassigned",
-            teacher_name: cell.teacher || "Unassigned Teacher",
-            stream_id: selectedTimetable.stream_id,
-            notes: `${day} ${period.label}`,
-            is_locked: false,
-            period_number: periodIdx + 1,
-          };
-        })
-      );
-
-      const { error } = await supabase
-        .from("timetables")
-        .update({
-          template_id: selectedTimetable.template_id || selectedTemplate?.id || null,
-          template_type: theme,
-          class_name: headerClassName,
-          term: headerTerm,
-          academic_year: headerYear,
-          timetable_data: entries,
-          generated_at: new Date().toISOString(),
-        })
-        .eq("id", selectedTimetable.id);
-
-      if (error) throw error;
-      toast.success("Timetable changes saved.");
-      await fetchData();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save timetable");
-    } finally {
-      setSaving(false);
+      await exportTimetableToPdf('timetable-print', `${schoolName.replace(/\s+/g, '_')}_Timetable_${className}.pdf`);
+      toast({ title: 'Exported!', description: 'Downloaded as PDF file.' });
+    } catch {
+      toast({ title: 'Error', description: 'PDF export failed.', variant: 'destructive' });
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      const { error } = await supabase.from("timetables").delete().eq("id", id);
-      if (error) throw error;
-      toast.success("Timetable deleted.");
-      await fetchData();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete timetable");
-    }
+  const handleReset = () => {
+    const newPeriods = [...LEVEL_PERIODS[activeLevel]];
+    setPeriods(newPeriods);
+    setDays([...DEFAULT_DAYS]);
+    setGrid(createGridForLevel(activeLevel, newPeriods));
+    toast({ title: 'Reset', description: 'Timetable has been reset.' });
   };
 
-  // Check if user has active subscription for exports
-  const hasActiveSubscription = () => {
-    if (!subscription) return false;
-    if (subscription.status !== "active") return false;
-    if (subscription.expires_at && new Date(subscription.expires_at) < new Date()) return false;
-    return true;
-  };
-
-  // Prompt user to upgrade if they try to export without subscription
-  const promptPayment = (feature: string) => {
-    const plan = subscription?.plan_type && subscription.plan_type in PAYSTACK_PLANS
-      ? PAYSTACK_PLANS[subscription.plan_type as keyof typeof PAYSTACK_PLANS]
-      : PAYSTACK_PLANS.basic;
-
-    toast.error(
-      <div className="space-y-2">
-        <p className="font-semibold">Upgrade Required</p>
-        <p className="text-sm">{feature} requires an active subscription.</p>
-        <Button
-          size="sm"
-          onClick={() => navigate("/billing")}
-          className="w-full mt-2"
-        >
-          <CreditCard className="w-4 h-4 mr-2" />
-          Upgrade to {plan.name}
-        </Button>
-      </div>,
-      { duration: 8000 }
-    );
-  };
-
-  const handlePdfExport = async () => {
-    if (!selectedTimetable) return toast.error("Choose a timetable to export.");
-    if (!hasActiveSubscription()) {
-      return promptPayment("PDF export");
-    }
-    const safeName = getTimetableLabel(selectedTimetable).replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
-    await exportTimetableToPdf("timetable-studio-print", `${safeName}.pdf`);
-  };
-
-  const handleExcelExport = () => {
-    if (!selectedTimetable) return toast.error("Choose a timetable to export.");
-    if (!hasActiveSubscription()) {
-      return promptPayment("Excel export");
-    }
-    exportTimetableToXls(grid, schoolName, headerClassName, headerTerm, headerYear, periods);
-    toast.success("Excel file exported.");
-  };
-
-  const handleImageExport = async (format: "pdf" | "png" | "jpeg") => {
-    if (!selectedTimetable) return toast.error("Choose a timetable to export.");
-    if (!hasActiveSubscription()) {
-      return promptPayment(`${format.toUpperCase()} export`);
-    }
-    await exportTimetableFile(
-      {
-        ...(selectedTimetable as any),
-        name: headerClassName,
-        timetable_data: days.flatMap((_, dayIdx) =>
-          periods.map((_, periodIdx) => ({
-            id: `${dayIdx + 1}-${periodIdx + 1}`,
-            day_of_week: dayIdx + 1,
-            period_number: periodIdx + 1,
-            subject_name: grid[dayIdx]?.[periodIdx]?.subject || "",
-            teacher_name: grid[dayIdx]?.[periodIdx]?.teacher || "",
-          }))
-        ),
-      },
-      format
-    );
-  };
-
-  const handleEmailTeachers = async () => {
-    if (filteredTimetables.length === 0) return toast.error("No generated timetables to email.");
-    await emailTimetablesToTeachers(
-      filteredTimetables.map((timetable) => ({ ...(timetable as any), name: getTimetableLabel(timetable) })),
-      schoolId
-    );
-    toast.success("Email dispatch request prepared.");
-  };
+  const handleAddSubject = (name: string) => setCustomSubjects((prev) => [...prev, name]);
+  const handleRemoveSubject = (name: string) => setCustomSubjects((prev) => prev.filter((s) => s !== name));
 
   const handleJsonImport = (json: string) => {
     const result = parseTimetableJSON(json);
-    if (!result) {
-      toast.error("Invalid JSON format.");
-      return;
+    if (result) {
+      setGrid(result.grid);
+      if (result.subjects) setCustomSubjects((prev) => [...new Set([...prev, ...result.subjects!])]);
+      toast({ title: 'Imported', description: 'Timetable loaded from JSON.' });
+    } else {
+      toast({ title: 'Error', description: 'Invalid JSON format.', variant: 'destructive' });
     }
-    setGrid(result.grid);
-    if (result.subjects) {
-      setCustomSubjects((prev) => Array.from(new Set([...prev, ...result.subjects!])));
-    }
-    toast.success("JSON imported into the studio.");
   };
+
+  const levelInfo = EDUCATION_LEVELS[activeLevel];
+  const subjectCount = getSubjectsByLevel(activeLevel).filter(s => !['BREAK','LUNCH','Games'].includes(s)).length;
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={() => navigate("/teachers")} className="gap-2 rounded-full font-semibold">
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </Button>
-            <div className="flex-1" />
-            <div className="hidden md:flex gap-2 flex-wrap justify-end">
-              <Button variant="outline" onClick={() => navigate("/bell-schedule")} className="gap-2 rounded-full font-semibold">
-                <Bell className="w-4 h-4" />
-                Bell Schedule
+      <div className="min-h-screen bg-background py-4 px-3">
+        <div className="max-w-[1200px] mx-auto">
+          {/* Top bar */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-xl font-display font-extrabold text-foreground flex items-center gap-2">
+                🇰🇪 Kenya School Timetable Creator
+              </h1>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Click any cell to edit • Click time headers to edit periods • CBC & 8-4-4 Curriculum
+              </p>
+            </div>
+            <div className="flex gap-2 items-center flex-wrap">
+              <FontSelector value={fontFamily} onChange={setFontFamily} />
+              <button
+                onClick={() => setColorless(!colorless)}
+                className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1.5 rounded-md border transition-all ${
+                  colorless
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-card text-foreground border-border hover:border-primary/50'
+                }`}
+                title={colorless ? 'Enable subject colors' : 'Disable subject colors (B&W)'}
+              >
+                <Palette className="w-3 h-3" />
+                {colorless ? 'B&W' : 'Color'}
+              </button>
+              <Button variant="outline" size="sm" onClick={handleReset} className="text-xs h-8">
+                <RotateCcw className="w-3 h-3 mr-1" /> Reset
               </Button>
-              <Button variant="outline" onClick={handleEmailTeachers} className="gap-2 rounded-full font-semibold">
-                <Mail className="w-4 h-4" />
-                Email
+              <Button variant="outline" size="sm" onClick={handleExportPdf} className="text-xs h-8">
+                <FileText className="w-3 h-3 mr-1" /> PDF
               </Button>
-              <Button onClick={handleGenerate} disabled={generating} className="bg-[#359AFF] text-white hover:bg-[#1F73E0] gap-2 font-semibold rounded-full">
-                {generating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    Generate New
-                  </>
-                )}
+              <Button size="sm" onClick={handleExportXls} className="text-xs h-8">
+                <Download className="w-3 h-3 mr-1" /> Excel
               </Button>
             </div>
           </div>
-          <div className="text-center">
-            <h1 className="text-3xl font-bold inline-flex items-center gap-3" style={{ fontFamily: "Recoleta, serif", color: "rgb(13, 60, 68)" }}>
-              <Calendar className="w-8 h-8" />
-              AI Timetable Studio
-            </h1>
-            <p className="text-muted-foreground mt-2 mx-auto max-w-3xl">
-              Generate, edit, and export Kenyan school timetables using the current ElimuTime theme.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 justify-center md:hidden">
-            <Button variant="outline" onClick={() => navigate("/bell-schedule")} className="gap-2 rounded-full font-semibold">
-              <Bell className="w-4 h-4" />
-              Bell Schedule
-            </Button>
-            <Button variant="outline" onClick={handleEmailTeachers} className="gap-2 rounded-full font-semibold">
-              <Mail className="w-4 h-4" />
-              Email
-            </Button>
-            <Button onClick={handleGenerate} disabled={generating} className="bg-[#359AFF] text-white hover:bg-[#1F73E0] gap-2 font-semibold rounded-full">
-              {generating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4" />
-                  Generate New
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
 
-        <Card className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Current theme</p>
-              <div className="flex items-center gap-2">
-                <p className="font-semibold">{DESIGN_THEMES[currentTheme].name}</p>
-                <Badge variant="outline" className="text-xs">
-                  {currentTheme}
-                </Badge>
-              </div>
+          {/* Education Level Selector */}
+          <div className="bg-card border border-border rounded-xl p-3 mb-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-2.5">
+              <GraduationCap className="w-4 h-4 text-primary" />
+              <span className="text-xs font-display font-bold text-foreground">Select Education Level</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">
+                {levelInfo.emoji} {levelInfo.label} • {subjectCount} subjects • {periods.length} periods
+              </span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Streams</p>
-              <p className="font-semibold">{streams.length}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Teachers</p>
-              <p className="font-semibold">{teachers.length}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Saved timetables</p>
-              <p className="font-semibold">{timetables.length}</p>
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t">
-            <p className="text-sm text-muted-foreground mb-2">Select visual theme</p>
-            <div className="flex flex-wrap gap-2">
-              {LOCAL_TEMPLATES.map((template) => (
-                <button
-                  key={template.id}
-                  onClick={() => {
-                    setCurrentTheme(template.theme);
-                    setTheme(template.theme);
-                    // Save selection to school
-                    supabase.from("schools").update({ timetable_template: template.theme }).eq("id", schoolId);
-                    toast.success(`Switched to ${template.name}`);
-                  }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    currentTheme === template.theme
-                      ? "bg-primary text-white"
-                      : "bg-muted hover:bg-muted/80"
-                  }`}
-                >
-                  {template.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search by stream..." className="pl-10" />
-          </div>
-        </Card>
-
-        {loading ? (
-          <Card className="p-10 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
-            <p className="text-muted-foreground">Loading timetable data...</p>
-          </Card>
-        ) : filteredTimetables.length === 0 ? (
-          <Card className="p-6 text-center sm:p-12">
-            <Calendar className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-xl font-semibold mb-2">No timetables yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Generate timetables after setting up streams, teachers, subjects, and a template.
-            </p>
-            <Button onClick={handleGenerate} className="bg-[#359AFF] text-white hover:bg-[#1F73E0] gap-2 font-semibold rounded-full">
-              <Plus className="w-4 h-4 mr-2" />
-              Generate Timetables
-            </Button>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-6">
-            <Card className="p-4 space-y-3">
-              {filteredTimetables.map((timetable) => {
-                const active = timetable.id === selectedTimetable?.id;
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+              {LEVELS.map(({ key }) => {
+                const info = EDUCATION_LEVELS[key];
+                const count = getSubjectsByLevel(key).filter(s => !['BREAK','LUNCH','Games'].includes(s)).length;
+                const isActive = activeLevel === key;
                 return (
                   <button
-                    key={timetable.id}
-                    type="button"
-                    onClick={() => setSelectedTimetableId(timetable.id)}
-                    className={`w-full text-left rounded-lg border p-4 transition-colors ${
-                      active ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
+                    key={key}
+                    onClick={() => switchLevel(key)}
+                    className={`relative group rounded-lg border-2 p-2.5 text-left transition-all duration-200 ${
+                      isActive
+                        ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md scale-[1.02]'
+                        : 'border-border hover:border-primary/40 hover:bg-muted/50'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <Badge>{timetable.status}</Badge>
-                      <span className="text-xs text-muted-foreground">{new Date(timetable.generated_at).toLocaleDateString()}</span>
+                    <div className="text-lg mb-0.5">{info.emoji}</div>
+                    <div className={`text-[10px] font-bold leading-tight ${isActive ? 'text-primary' : 'text-foreground'}`}>
+                      {info.label}
                     </div>
-                    <h3 className="font-semibold">{getTimetableLabel(timetable)}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">{Array.isArray(timetable.timetable_data) ? timetable.timetable_data.length : 0} entries</p>
+                    <div className="text-[9px] text-muted-foreground mt-0.5">{count} subjects</div>
+                    {isActive && (
+                      <div className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    )}
                   </button>
                 );
               })}
-            </Card>
-
-            <div className="space-y-6">
-              {selectedTimetable && (
-                <>
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div>
-                        <h2 className="text-2xl font-bold">{getTimetableLabel(selectedTimetable)}</h2>
-                        <p className="text-muted-foreground">
-                          {EDUCATION_LEVELS[getLevelFromGrade(selectedTimetable.streams?.grade)].label} • Theme {DESIGN_THEMES[theme].name}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 flex-wrap">
-                        <FontSelector value={fontFamily} onChange={setFontFamily} />
-                        <Button variant="outline" onClick={() => setColorless(!colorless)} className="gap-2">
-                          <Eye className="w-4 h-4" />
-                          {colorless ? "Color" : "B&W"}
-                        </Button>
-                        <Button variant="outline" onClick={handlePdfExport} className="gap-2">
-                          <Download className="w-4 h-4" />
-                          PDF
-                        </Button>
-                        <Button variant="outline" onClick={handleExcelExport} className="gap-2">
-                          <Download className="w-4 h-4" />
-                          Excel
-                        </Button>
-                        <Button variant="outline" onClick={() => handleImageExport("png")} className="gap-2">
-                          <Download className="w-4 h-4" />
-                          PNG
-                        </Button>
-                        <Button onClick={handleSaveStudio} disabled={saving} className="gap-2 bg-[#359AFF] text-white hover:bg-[#1F73E0]">
-                          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                          Save
-                        </Button>
-                        <Button variant="outline" onClick={() => handleDelete(selectedTimetable.id)} className="gap-2 text-destructive hover:text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4 border-primary/10 bg-primary/5">
-                    <p className="text-sm text-foreground">
-                      Click any timetable cell to edit subjects and teachers, then adjust the school, class, term, and year fields above before saving.
-                    </p>
-                  </Card>
-
-                  <div
-                    id="timetable-studio-print"
-                    className="bg-card rounded-xl shadow-lg border border-border overflow-hidden"
-                    style={{ fontFamily }}
-                  >
-                    <SchoolHeader
-                      schoolName={schoolName}
-                      className={headerClassName}
-                      term={headerTerm}
-                      year={headerYear}
-                      onSchoolNameChange={setSchoolName}
-                      onClassNameChange={setHeaderClassName}
-                      onTermChange={setHeaderTerm}
-                      onYearChange={setHeaderYear}
-                      theme={theme}
-                    />
-                    <div className="p-3">
-                      <TimetableGrid
-                        grid={grid}
-                        days={days}
-                        periods={periods}
-                        onCellChange={(dayIdx, periodIdx, data) =>
-                          setGrid((prev) => {
-                            const next = prev.map((row) => [...row]);
-                            next[dayIdx][periodIdx] = data;
-                            return next;
-                          })
-                        }
-                        onPeriodChange={(periodIdx, slot) =>
-                          setPeriods((prev) => {
-                            const next = [...prev];
-                            next[periodIdx] = slot;
-                            return next;
-                          })
-                        }
-                        theme={theme}
-                        customSubjects={customSubjects}
-                        colorless={colorless}
-                        rowColors={rowColors}
-                        colColors={colColors}
-                        onRowColorChange={(idx, color) => setRowColors((prev) => ({ ...prev, [idx]: color }))}
-                        onColColorChange={(idx, color) => setColColors((prev) => ({ ...prev, [idx]: color }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <DesignSelector theme={theme} onThemeChange={setTheme} />
-                    <SubjectManager
-                      customSubjects={customSubjects}
-                      onAddSubject={(name) => setCustomSubjects((prev) => [...prev, name])}
-                      onRemoveSubject={(name) => setCustomSubjects((prev) => prev.filter((subject) => subject !== name))}
-                      onJsonImport={handleJsonImport}
-                    />
-                  </div>
-                </>
-              )}
             </div>
           </div>
-        )}
+
+          {/* Day Management */}
+          <div className="flex items-center gap-2 mb-2 max-w-[1120px] mx-auto">
+            <span className="text-[10px] font-bold text-muted-foreground">Days:</span>
+            {days.map((d, i) => (
+              <span key={d} className="inline-flex items-center gap-0.5 bg-muted text-foreground text-[9px] font-semibold px-2 py-0.5 rounded-full">
+                {d}
+                {days.length > 1 && (
+                  <button onClick={() => removeDay(i)} className="ml-0.5 hover:text-destructive">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </span>
+            ))}
+            {days.length < ALL_DAYS.length && (
+              <button
+                onClick={addDay}
+                className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary hover:text-primary/80 bg-primary/10 px-2 py-0.5 rounded-full"
+              >
+                <Plus className="w-2.5 h-2.5" /> Add Day
+              </button>
+            )}
+          </div>
+
+          {/* A4 Landscape Timetable */}
+          <div
+            id="timetable-print"
+            className="bg-card rounded-xl shadow-lg border border-border overflow-hidden"
+            style={{ maxWidth: '1120px', margin: '0 auto', fontFamily }}
+          >
+            <SchoolHeader
+              schoolName={schoolName}
+              className={className}
+              term={term}
+              year={year}
+              onSchoolNameChange={setSchoolName}
+              onClassNameChange={setClassName}
+              onTermChange={setTerm}
+              onYearChange={setYear}
+              theme={theme}
+            />
+            <div className="p-1.5">
+              <TimetableGridComponent
+                grid={grid}
+                days={days}
+                periods={periods}
+                onCellChange={handleCellChange}
+                onPeriodChange={handlePeriodChange}
+                theme={theme}
+                customSubjects={customSubjects}
+                colorless={colorless}
+                rowColors={rowColors}
+                colColors={colColors}
+                onRowColorChange={(idx, c) => setRowColors(prev => ({ ...prev, [idx]: c }))}
+                onColColorChange={(idx, c) => setColColors(prev => ({ ...prev, [idx]: c }))}
+              />
+            </div>
+          </div>
+
+          {/* Design & Subject Management */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-[1120px] mx-auto">
+            <DesignSelector theme={theme} onThemeChange={setTheme} />
+            <SubjectManager
+              customSubjects={customSubjects}
+              onAddSubject={handleAddSubject}
+              onRemoveSubject={handleRemoveSubject}
+              onJsonImport={handleJsonImport}
+            />
+          </div>
+
+          <p className="text-center text-[9px] text-muted-foreground mt-3">
+            Designed for Kenyan CBC & 8-4-4 curriculum schools • KICD aligned
+          </p>
+        </div>
       </div>
     </DashboardLayout>
   );

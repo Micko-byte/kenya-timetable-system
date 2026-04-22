@@ -4,9 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { TemplateSelector } from "@/components/TemplateSelector";
 import { PastTimetableUpload } from "@/components/PastTimetableUpload";
-import Threads from "@/components/effects/Threads";
 import { getCurrentSchoolSession } from "@/lib/session";
 import {
   Users,
@@ -29,7 +27,6 @@ const Dashboard = () => {
     timetables: 0,
   });
   const [schoolId, setSchoolId] = useState<string>("");
-  const [currentTemplate, setCurrentTemplate] = useState<string>("classic");
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -49,7 +46,7 @@ const Dashboard = () => {
         .single();
 
       if (school) {
-        setCurrentTemplate(school.timetable_template || "classic");
+        // Template preference fetched but not used in this view anymore
       }
 
         // Fetch stats
@@ -180,46 +177,9 @@ const Dashboard = () => {
         </div>
 
         {/* Uploads */}
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-1 gap-6 pb-10">
           <div className="rounded-lg transition-all duration-300 hover:shadow-[0_0_40px_hsl(var(--secondary)/0.22)]">
             <PastTimetableUpload />
-          </div>
-        </div>
-
-        {/* Template Selector with Threads */}
-        <div className="relative overflow-hidden rounded-[2rem]">
-          <div className="pointer-events-none absolute inset-0 z-0">
-            <div className="absolute inset-0 opacity-100">
-              <Threads
-                amplitude={2.5}
-                distance={0}
-                enableMouseInteraction={true}
-                color="#2196f3"
-              />
-            </div>
-            <div className="absolute inset-0 opacity-80">
-              <Threads
-                amplitude={2}
-                distance={0}
-                enableMouseInteraction={true}
-                color="#ffffff"
-              />
-            </div>
-            <div className="absolute inset-0 opacity-90">
-              <Threads
-                amplitude={1.5}
-                distance={0}
-                enableMouseInteraction={true}
-                color="#ae00ff"
-              />
-            </div>
-          </div>
-          <div className="relative z-10">
-            <TemplateSelector
-              currentTemplate={currentTemplate}
-              schoolId={schoolId}
-              onTemplateChange={setCurrentTemplate}
-            />
           </div>
         </div>
       </div>

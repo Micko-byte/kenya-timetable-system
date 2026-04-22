@@ -1,80 +1,56 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/AdminLayout';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Palette, Eye } from 'lucide-react';
-import { DESIGN_THEMES, type DesignTheme } from '@/lib/timetableData';
-
-// Sample data for preview
-const SAMPLE_SUBJECTS = ['Math', 'English', 'Science', 'History', 'Art', 'PE'];
-const SAMPLE_TEACHERS = ['Mr. Smith', 'Ms. Jones', 'Mr. Kimani', 'Mrs. Wanjiku', 'Mr. Omondi', 'Ms. Achieng'];
-
-// Mini timetable preview component
-function MiniTimetablePreview({ theme, templateId }: { theme: typeof DESIGN_THEMES[DesignTheme]; templateId: DesignTheme }) {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  const periods = [1, 2, 3, 4, 5];
-
-  return (
-    <div className="w-full overflow-hidden rounded border text-xs">
-      <div className={`${theme.headerBg} ${theme.headerText} px-2 py-1 font-semibold text-center`}>
-        Sample Timetable Preview
-      </div>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className={theme.headerBg.replace('bg-gradient-to-r', '').replace('from-black', 'bg-gray-800').replace('from-blue-600', 'bg-blue-600').replace('from-purple-600', 'bg-purple-600').replace('from-orange-500', 'bg-orange-500').replace('from-gray-900', 'bg-gray-900').replace('from-slate-700', 'bg-slate-700')}>
-            <th className={`border p-1 ${theme.headerText}`}>Day</th>
-            {periods.map((p) => (
-              <th key={p} className={`border p-1 ${theme.headerText}`}>P{p}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {days.map((day, dayIdx) => (
-            <tr key={day} style={{ backgroundColor: dayIdx % 2 === 0 ? 'white' : '#f9fafb' }}>
-              <td className="border p-1 font-medium bg-gray-50">{day}</td>
-              {periods.map((period, periodIdx) => {
-                const subjectIdx = (dayIdx + periodIdx) % SAMPLE_SUBJECTS.length;
-                const cellBg = theme.palette[subjectIdx % theme.palette.length];
-                const isMonochrome = templateId === 'monochrome';
-                return (
-                  <td
-                    key={period}
-                    className="border p-1 text-center"
-                    style={{
-                      backgroundColor: isMonochrome ? 'white' : cellBg + '20',
-                      color: isMonochrome ? 'black' : cellBg
-                    }}
-                  >
-                    <div className="font-medium truncate">{SAMPLE_SUBJECTS[subjectIdx]}</div>
-                    <div className="text-[8px] truncate opacity-70">{SAMPLE_TEACHERS[subjectIdx]}</div>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-type LocalTemplate = {
-  id: DesignTheme;
-  name: string;
-  description: string;
-  theme: DesignTheme;
-};
-
-const LOCAL_TEMPLATES: LocalTemplate[] = [
-  { id: 'monochrome', name: 'Monochrome (B&W)', description: 'Clean black and white. Perfect for printing.', theme: 'monochrome' },
-  { id: 'kenyan', name: 'Kenyan Flag', description: 'Black, red, green with Maasai shield pattern.', theme: 'kenyan' },
-  { id: 'classic', name: 'Classic Kenya', description: 'Traditional Kenyan school colors.', theme: 'classic' },
-  { id: 'modern', name: 'Modern Glass', description: 'Blue gradient with glass effect.', theme: 'modern' },
-  { id: 'vibrant', name: 'Vibrant Colors', description: 'Orange, red, pink energetic gradient.', theme: 'vibrant' },
-  { id: 'midnight', name: 'Midnight Black', description: 'Dark mode with sleek blacks.', theme: 'midnight' },
-  { id: 'slate', name: 'Slate Pro', description: 'Professional slate gray.', theme: 'slate' },
-];
+import { Palette, Plus, Edit, Trash2, Archive, Globe, CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { TimetableTemplate } from '@/features/timetable/types';
+import { EDUCATION_LEVELS } from '@/features/timetable/lib/timetableData';
 
 const AdminTemplates = () => {
+  const [templates, setTemplates] = useState<TimetableTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const fetchTemplates = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('timetable_templates')
+        .select('*')
+        .order('is_featured', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      toast({ title: 'Error', description: 'Failed to load templates.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this template?')) return;
+    try {
+      const { error } = await supabase.from('timetable_templates').delete().eq('id', id);
+      if (error) throw error;
+      setTemplates(templates.filter(t => t.id !== id));
+      toast({ title: 'Deleted', description: 'Template removed successfully.' });
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to delete template.', variant: 'destructive' });
+    }
+  };
+
   return (
     <AdminLayout>
       <div className='space-y-6'>
@@ -84,59 +60,83 @@ const AdminTemplates = () => {
               <Palette className='w-7 h-7' />
               Template Management
             </h1>
-            <p className='text-muted-foreground'>7 built-in visual themes for timetables</p>
+            <p className='text-muted-foreground'>Manage master designs and education levels</p>
           </div>
+          <Button onClick={() => navigate('/admin/templates/new')} className="flex items-center gap-2">
+            <Plus className="w-4 h-4" /> New Template
+          </Button>
         </div>
 
-        <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
-          {LOCAL_TEMPLATES.map((template) => {
-            const theme = DESIGN_THEMES[template.theme];
-            return (
-              <Card key={template.id} className='p-5 space-y-4'>
+        {loading ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map(i => <Card key={i} className="h-64 animate-pulse bg-muted" />)}
+          </div>
+        ) : templates.length === 0 ? (
+          <Card className="p-12 text-center space-y-4">
+            <p className="text-muted-foreground">No templates found. Create your first design!</p>
+            <Button onClick={() => navigate('/admin/templates/new')}>Create Template</Button>
+          </Card>
+        ) : (
+          <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
+            {templates.map((template) => (
+              <Card key={template.id} className='p-5 flex flex-col'>
                 {/* Header Preview */}
-                <div className={`h-16 rounded-lg flex items-center justify-center text-lg font-bold ${theme.headerBg} ${theme.headerText}`}>
-                  {theme.name}
+                <div 
+                  className={`h-24 rounded-lg flex flex-col items-center justify-center mb-4 ${template.theme_config.headerBg} ${template.theme_config.headerText} ${template.theme_config.accent}`}
+                >
+                  <span className="text-xs opacity-80">{template.design.replace('_', ' ').toUpperCase()}</span>
+                  <span className="font-bold">{template.name}</span>
                 </div>
 
-                {/* Template Info */}
-                <div>
-                  <h3 className='font-semibold text-lg'>{template.name}</h3>
-                  <p className='text-sm text-muted-foreground'>{template.description}</p>
-                </div>
-
-                {/* Full Timetable Preview */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Eye className="w-3 h-3" />
-                    <span>Timetable Preview</span>
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className='font-semibold'>{template.name}</h3>
+                      <p className='text-xs text-muted-foreground line-clamp-2'>{template.description || 'No description provided.'}</p>
+                    </div>
+                    <Badge variant={template.status === 'published' ? 'default' : 'secondary'}>
+                      {template.status.toUpperCase()}
+                    </Badge>
                   </div>
-                  <MiniTimetablePreview theme={theme} templateId={template.id} />
+
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="text-[10px]">
+                      {EDUCATION_LEVELS[template.level]?.label || template.level}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      v{template.version}
+                    </Badge>
+                    {template.is_featured && (
+                      <Badge className="bg-yellow-500 text-black text-[10px] hover:bg-yellow-600">FEATURED</Badge>
+                    )}
+                  </div>
                 </div>
 
-                {/* Color Palette */}
-                <div className='flex gap-1 flex-wrap'>
-                  {theme.palette.slice(0, 5).map((color, i) => (
-                    <div key={i} className='w-6 h-6 rounded border' style={{ backgroundColor: color }} />
-                  ))}
-                </div>
-
-                {/* Badges */}
-                <div className='flex gap-2 text-xs text-muted-foreground'>
-                  <Badge variant='outline'>{theme.headerBg.includes('gradient') ? 'Gradient' : 'Solid'}</Badge>
-                  <Badge variant='outline'>{template.theme}</Badge>
+                <div className='flex items-center justify-between mt-6 pt-4 border-t gap-2'>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/admin/templates/${template.id}/edit`)}>
+                      <Edit className="w-3.5 h-3.5 mr-1" /> Edit
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(template.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <div className="flex gap-1">
+                    {template.status !== 'published' ? (
+                      <Button variant="ghost" size="sm" className="text-green-600">
+                        <Globe className="w-3.5 h-3.5 mr-1" /> Publish
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="sm">
+                        <Archive className="w-3.5 h-3.5 mr-1" /> Archive
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </Card>
-            );
-          })}
-        </div>
-
-        <Card className='p-6'>
-          <h3 className='font-semibold mb-2'>About Templates</h3>
-          <p className='text-sm text-muted-foreground'>
-            Templates are now built-in presets. Schools can select their preferred visual theme from the Templates page.
-            The Monochrome (B&W) theme is the default and is optimized for printing.
-          </p>
-        </Card>
+            ))}
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
