@@ -71,6 +71,7 @@ async function callFunction<T>(name: string, body: Record<string, unknown>): Pro
 declare global {
   interface Window {
     PaystackPop?: new () => {
+      resumeTransaction: (accessCode: string) => void;
       checkout: (options: {
         key: string;
         email: string;
@@ -89,6 +90,7 @@ declare global {
 }
 
 const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+let paystackScriptPromise: Promise<void> | null = null;
 
 export interface PaystackInitInput {
   schoolId: string;
@@ -96,11 +98,14 @@ export interface PaystackInitInput {
   email: string;
   planType: PaystackPlanType;
   paymentChannel: PaymentChannel;
+  callbackUrl?: string;
   phone?: string;
 }
 
 export interface PaystackInitResult {
   reference: string;
+  access_code: string;
+  authorization_url: string;
   amount: number;
   currency: string;
 }
@@ -120,69 +125,72 @@ export const paystackApi = {
     callFunction<PaystackInitResult>("paystack-init", input),
   verifyPayment: (reference: string) =>
     callFunction<PaystackVerifyResult>("paystack-verify", { reference }),
-  openInlineCheckout: async (options: {
-    reference: string;
-    email: string;
-    amount: number;
-    currency?: string;
-    channels?: PaymentChannel[];
-    metadata?: Record<string, unknown>;
-    onSuccess: (transaction: { reference: string; [key: string]: unknown }) => void;
-    onCancel?: () => void;
-    onError?: (error: Error) => void;
-    onLoad?: () => void;
-  }) => {
+  openInlineCheckout: async (accessCode: string) => {
+    if (!accessCode) {
+      throw new Error("Missing Paystack access code.");
+    }
+
     if (!PAYSTACK_PUBLIC_KEY) {
       throw new Error("Missing Paystack public key.");
     }
 
-    if (!window.PaystackPop) {
-      await loadPaystackInlineScript();
-    }
+    await loadPaystackInlineScript();
 
     if (!window.PaystackPop) {
       throw new Error("Paystack checkout script failed to load.");
     }
 
     const popup = new window.PaystackPop();
-    popup.checkout({
-      key: PAYSTACK_PUBLIC_KEY,
-      email: options.email,
-      amount: options.amount,
-      reference: options.reference,
-      currency: options.currency || "KES",
-      channels: options.channels,
-      metadata: options.metadata,
-      onSuccess: options.onSuccess,
-      onCancel: options.onCancel,
-      onError: options.onError,
-      onLoad: options.onLoad,
-    });
+    popup.resumeTransaction(accessCode);
   },
 };
 
-function loadPaystackInlineScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.PaystackPop) {
-      resolve();
-      return;
-    }
+export function normalizeKenyanPhoneNumber(phone: string) {
+  const compact = phone.replace(/\s|-/g, "").trim();
+  if (compact.startsWith("+254")) {
+    return compact.slice(1);
+  }
+  if (compact.startsWith("254")) {
+    return compact;
+  }
+  if (compact.startsWith("07") && compact.length === 10) {
+    return `254${compact.slice(1)}`;
+  }
+  return compact;
+}
 
-    const existing = document.querySelector<HTMLScriptElement>('script[data-paystack-inline="true"]');
-    if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Failed to load Paystack checkout script.")), {
-        once: true,
-      });
-      return;
-    }
+export function isValidKenyanMobileMoneyPhone(phone: string) {
+  const normalized = normalizeKenyanPhoneNumber(phone);
+  return /^2547\d{8}$/.test(normalized);
+}
 
-    const script = document.createElement("script");
-    script.src = "https://js.paystack.co/v2/inline.js";
-    script.async = true;
-    script.dataset.paystackInline = "true";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Paystack checkout script."));
-    document.head.appendChild(script);
-  });
+function loadPaystackInlineScript() {
+  if (window.PaystackPop) {
+    return Promise.resolve();
+  }
+
+  if (!paystackScriptPromise) {
+    paystackScriptPromise = new Promise<void>((resolve, reject) => {
+      const existingScript = document.querySelector<HTMLScriptElement>('script[data-paystack-inline="true"]');
+      if (existingScript) {
+        if (window.PaystackPop) {
+          resolve();
+        } else {
+          existingScript.addEventListener("load", () => resolve(), { once: true });
+          existingScript.addEventListener("error", () => reject(new Error("Failed to load Paystack checkout script.")), { once: true });
+        }
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://js.paystack.co/v2/inline.js";
+      script.async = true;
+      script.dataset.paystackInline = "true";
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load Paystack checkout script."));
+      document.head.appendChild(script);
+    });
+  }
+
+  return paystackScriptPromise;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { PAYSTACK_PLANS, paystackApi, type PaymentChannel, type PaystackPlanType } from "@/lib/paystack";
+import { PAYSTACK_PLANS, isValidKenyanMobileMoneyPhone, normalizeKenyanPhoneNumber, paystackApi, type PaymentChannel, type PaystackPlanType } from "@/lib/paystack";
 
 interface Subscription {
   id: string;
@@ -50,6 +50,7 @@ const PAYMENT_CHANNELS: Array<{ label: string; value: PaymentChannel; descriptio
 
 const Billing = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [schoolId, setSchoolId] = useState("");
   const [schoolName, setSchoolName] = useState("");
@@ -62,10 +63,24 @@ const Billing = () => {
   const [paymentChannel, setPaymentChannel] = useState<PaymentChannel>("card");
   const [selectedPlan, setSelectedPlan] = useState<PaystackPlanType | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [lastVerifiedReference, setLastVerifiedReference] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchSubscription();
   }, [navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const reference = params.get("reference");
+    if (!reference || reference === lastVerifiedReference) {
+      return;
+    }
+
+    setLastVerifiedReference(reference);
+    void verifyReference(reference).finally(() => {
+      navigate("/billing", { replace: true });
+    });
+  }, [location.search, lastVerifiedReference, navigate]);
 
   const currentPlan = useMemo(
     () =>
@@ -151,40 +166,32 @@ const Billing = () => {
       return;
     }
 
+    if (paymentChannel === "mobile_money" && !isValidKenyanMobileMoneyPhone(phone)) {
+      toast.error("Enter a valid Kenyan phone number like 07XXXXXXXX or 2547XXXXXXXX.");
+      return;
+    }
+
 
 
     try {
       setCheckingOut(planType);
+      const normalizedPhone = paymentChannel === "mobile_money" ? normalizeKenyanPhoneNumber(phone) : phone || undefined;
 
-      const amount = PAYSTACK_PLANS[planType].amount;
-      const { reference } = await paystackApi.initializePayment({
+      const { access_code } = await paystackApi.initializePayment({
         schoolId,
         schoolName,
         email: schoolEmail,
         planType,
         paymentChannel,
-        phone: phone || undefined,
+        callbackUrl: `${window.location.origin}/billing`,
+        phone: normalizedPhone,
       });
 
-      await paystackApi.openInlineCheckout({
-        reference,
-        email: schoolEmail,
-        amount,
-        currency: "KES",
-        channels: [paymentChannel],
-        metadata: {
-          school_id: schoolId,
-          school_name: schoolName,
-          plan_type: planType,
-          payment_channel: paymentChannel,
-          phone: phone || undefined,
-        },
-        onSuccess: async (transaction) => {
-          await verifyReference(String(transaction.reference || reference));
-        },
-        onCancel: () => toast.info("Payment was cancelled."),
-        onError: (error) => toast.error(error.message || "Paystack checkout failed"),
-      });
+      if (!access_code) {
+        throw new Error("Paystack did not return an access code.");
+      }
+
+      await paystackApi.openInlineCheckout(access_code);
     } catch (error: any) {
       toast.error(error.message || "Failed to start checkout");
     } finally {
@@ -219,7 +226,7 @@ const Billing = () => {
             Billing & Subscription
           </h1>
           <p className="text-muted-foreground">
-            Pick a plan, choose card or mobile money, and complete payment inside the app.
+            Pick a plan, choose card or mobile money, and complete payment in the secure Paystack popup on this page.
           </p>
         </div>
 
@@ -354,6 +361,9 @@ const Billing = () => {
               <div>
                 <label className="text-sm font-semibold mb-2 block">Phone Number</label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="2547XXXXXXXX" />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  For Kenya mobile money, use <span className="font-semibold">07XXXXXXXX</span> or <span className="font-semibold">2547XXXXXXXX</span>.
+                </p>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -391,15 +401,15 @@ const Billing = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-card rounded-lg border border-border">
               <p className="font-semibold mb-2">1. Reserve</p>
-              <p className="text-sm text-muted-foreground">
-                The app stores a pending payment row in Supabase before the Paystack popup opens.
-              </p>
+                <p className="text-sm text-muted-foreground">
+                  The app stores a pending payment row in Supabase before the Paystack popup opens on this page.
+                </p>
             </div>
             <div className="p-4 bg-card rounded-lg border border-border">
               <p className="font-semibold mb-2">2. Pay In App</p>
-              <p className="text-sm text-muted-foreground">
-                Paystack opens in a popup with card or mobile money, so the user stays on this page.
-              </p>
+                <p className="text-sm text-muted-foreground">
+                  Paystack opens its secure checkout here, then returns the user here after payment.
+                </p>
             </div>
             <div className="p-4 bg-card rounded-lg border border-border">
               <p className="font-semibold mb-2">3. Verify</p>

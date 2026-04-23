@@ -18,8 +18,20 @@ import { exportTimetableToPdf } from '@/features/timetable/lib/exportToPdf';
 import { useToast } from '@/hooks/use-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 import PaymentDialog from '@/features/timetable/components/PaymentDialog';
+import { useLocation } from 'react-router-dom';
+import { paystackApi } from '@/lib/paystack';
 
 type ActiveLevel = Exclude<EducationLevel, 'common'>;
+type StreamRecord = { id: string; grade: number; stream_name: string };
+type TeacherRecord = {
+  id: string;
+  name: string;
+  subjects: string[];
+  assignedStreamIds: string[];
+  subjectClassLinks: Array<{ subject: string; streamId: string }>;
+};
+type TeacherCalendar = Record<string, Set<string>>;
+
 const LEVELS: { key: ActiveLevel; defaultSchool: string; defaultClass: string }[] = [
   { key: 'pre_primary', defaultSchool: 'Brightstone Schools Pre-School', defaultClass: 'PP2' },
   { key: 'lower_primary', defaultSchool: 'Brightstone Schools Primary', defaultClass: 'Grade 2' },
@@ -29,8 +41,133 @@ const LEVELS: { key: ActiveLevel; defaultSchool: string; defaultClass: string }[
   { key: 'eight_four_four', defaultSchool: 'Brightstone Schools Secondary', defaultClass: 'Form 2A' },
 ];
 
+const gradeToLevel = (grade: number): ActiveLevel => {
+  if (grade <= 3) return 'lower_primary';
+  if (grade <= 6) return 'upper_primary';
+  if (grade <= 9) return 'junior_secondary';
+  if (grade <= 12) return 'senior_secondary';
+  return 'eight_four_four';
+};
+
+const formatStreamLabel = (stream: StreamRecord) => `Grade ${stream.grade} - ${stream.stream_name}`;
+
+const normalizeText = (value: string) => value.trim().toLowerCase();
+const slotKey = (dayIdx: number, periodIdx: number) => `${dayIdx}:${periodIdx}`;
+
+function pickTeacherForSubject(
+  teachers: TeacherRecord[],
+  stream: StreamRecord,
+  subject: string,
+  slot: string,
+  teacherCalendar: TeacherCalendar,
+) {
+  const exactMatches = teachers.filter((teacher) =>
+    teacher.subjectClassLinks.some(
+      (link) => link.streamId === stream.id && normalizeText(link.subject) === normalizeText(subject),
+    ),
+  );
+  const assignedMatches = teachers.filter(
+    (teacher) =>
+      teacher.assignedStreamIds.includes(stream.id) && teacher.subjects.some((teacherSubject) => normalizeText(teacherSubject) === normalizeText(subject)),
+  );
+  const generalMatches = teachers.filter((teacher) => teacher.subjects.some((teacherSubject) => normalizeText(teacherSubject) === normalizeText(subject)));
+
+  const candidateTeachers = [...exactMatches, ...assignedMatches, ...generalMatches].filter(
+    (teacher, index, list) => list.findIndex((item) => item.id === teacher.id) === index,
+  );
+
+  for (const teacher of candidateTeachers) {
+    const teacherKey = normalizeText(teacher.name);
+    if (!teacherKey) continue;
+
+    if (!teacherCalendar[teacherKey]) {
+      teacherCalendar[teacherKey] = new Set<string>();
+    }
+
+    if (!teacherCalendar[teacherKey].has(slot)) {
+      teacherCalendar[teacherKey].add(slot);
+      return teacher.name;
+    }
+  }
+
+  return '';
+}
+
+function buildStreamGrid(
+  stream: StreamRecord,
+  teachers: TeacherRecord[],
+  periods: PeriodSlot[],
+  activeLevel: ActiveLevel,
+  teacherCalendar: TeacherCalendar,
+): TimetableGrid {
+  const levelSubjects = getSubjectsByLevel(activeLevel).filter(
+    (subject) => !['BREAK', 'LUNCH', 'Games', 'Physical Education'].includes(subject),
+  );
+
+  const linkedSubjects = Array.from(
+    new Set(
+      teachers.flatMap((teacher) =>
+        teacher.subjectClassLinks
+          .filter((link) => link.streamId === stream.id)
+          .map((link) => link.subject),
+      ),
+    ),
+  ).filter(Boolean);
+
+  const assignedTeacherSubjects = Array.from(
+    new Set(
+      teachers.flatMap((teacher) =>
+        teacher.assignedStreamIds.includes(stream.id) ? teacher.subjects : [],
+      ),
+    ),
+  ).filter(Boolean);
+
+  const subjectPool = linkedSubjects.length > 0
+    ? linkedSubjects
+    : assignedTeacherSubjects.length > 0
+      ? assignedTeacherSubjects
+      : levelSubjects;
+
+  if (subjectPool.length === 0) {
+    return DEFAULT_DAYS.map(() => periods.map(() => ({ subject: '', teacher: '' })));
+  }
+
+  return DEFAULT_DAYS.map((_, dayIdx) =>
+    periods.map((period, periodIdx) => {
+      const label = period.label.toUpperCase();
+      if (label === 'BREAK') return { subject: 'BREAK', teacher: '' };
+      if (label === 'LUNCH') return { subject: 'LUNCH', teacher: '' };
+      if (label.includes('GAME') || label.includes('OUTDOOR') || label.includes('FREE PLAY')) {
+        return { subject: period.label, teacher: '' };
+      }
+
+      const startIndex = (dayIdx * periods.length + periodIdx) % subjectPool.length;
+      for (let offset = 0; offset < subjectPool.length; offset += 1) {
+        const subject = subjectPool[(startIndex + offset) % subjectPool.length];
+        const teacher = pickTeacherForSubject(teachers, stream, subject, slotKey(dayIdx, periodIdx), teacherCalendar);
+        if (teacher) {
+          return { subject, teacher };
+        }
+      }
+
+      return { subject: '', teacher: '' };
+    }),
+  );
+}
+
+function buildAllStreamGrids(streams: StreamRecord[], teachers: TeacherRecord[], periods: PeriodSlot[]) {
+  const teacherCalendar: TeacherCalendar = {};
+  const orderedStreams = [...streams].sort((a, b) => a.grade - b.grade || a.stream_name.localeCompare(b.stream_name));
+
+  return orderedStreams.reduce<Record<string, TimetableGrid>>((acc, stream) => {
+    acc[stream.id] = buildStreamGrid(stream, teachers, periods, gradeToLevel(stream.grade), teacherCalendar);
+    return acc;
+  }, {});
+}
+
 const Timetables = () => {
   const { toast } = useToast();
+  const location = useLocation();
   const [activeLevel, setActiveLevel] = useState<ActiveLevel>('eight_four_four');
   const [schoolName, setSchoolName] = useState('Brightstone Schools Secondary');
   const [fontFamily, setFontFamily] = useState(FONT_OPTIONS[0].value);
@@ -54,6 +191,11 @@ const Timetables = () => {
   const [usageCount, setUsageCount] = useState(0);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [streams, setStreams] = useState<StreamRecord[]>([]);
+  const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
+  const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
+  const [streamGrids, setStreamGrids] = useState<Record<string, TimetableGrid>>({});
+  const [lastVerifiedReference, setLastVerifiedReference] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUserSchool = async () => {
@@ -77,13 +219,51 @@ const Timetables = () => {
           setSchoolName(schoolData.name);
         }
 
-        setSchoolId(profile.school_id);
-        setUserEmail(user.email || null);
+      setSchoolId(profile.school_id);
+      setUserEmail(user.email || null);
 
-        // Fetch subscription status
-        const { data: subData } = await supabase
-          .from('subscriptions')
-          .select('status')
+      const [
+        { data: streamsData },
+        { data: teachersData },
+      ] = await Promise.all([
+        supabase
+          .from('streams')
+          .select('id, grade, stream_name')
+          .eq('school_id', profile.school_id)
+          .order('grade', { ascending: true }),
+        supabase
+          .from('teachers')
+          .select(`
+            id,
+            name,
+            teacher_subjects(subjects(name)),
+            teacher_assigned_classes(stream_id),
+            teacher_subject_classes(stream_id, subjects(name))
+          `)
+          .eq('school_id', profile.school_id),
+      ]);
+
+      const formattedTeachers: TeacherRecord[] = (teachersData || []).map((teacher: any) => ({
+        id: teacher.id,
+        name: teacher.name,
+        subjects:
+          teacher.teacher_subjects?.map((entry: any) => entry.subjects?.name).filter(Boolean) || [],
+        assignedStreamIds:
+          teacher.teacher_assigned_classes?.map((entry: any) => entry.stream_id).filter(Boolean) || [],
+        subjectClassLinks:
+          teacher.teacher_subject_classes?.map((entry: any) => ({
+            subject: entry.subjects?.name || '',
+            streamId: entry.stream_id,
+          })).filter((entry: any) => entry.subject && entry.streamId) || [],
+      }));
+
+      setStreams((streamsData || []) as StreamRecord[]);
+      setTeachers(formattedTeachers);
+
+      // Fetch subscription status
+      const { data: subData } = await supabase
+        .from('subscriptions')
+        .select('status')
           .eq('school_id', profile.school_id)
           .maybeSingle();
         
@@ -96,11 +276,86 @@ const Timetables = () => {
           .eq('school_id', profile.school_id);
         
         setUsageCount(count || 0);
+
+        if ((streamsData || []).length > 0) {
+          const initialStream = (streamsData || [])[0] as StreamRecord;
+          setActiveStreamId(initialStream.id);
+        }
       }
     };
 
     fetchUserSchool();
   }, []);
+
+  useEffect(() => {
+    if (streams.length === 0 || teachers.length === 0) {
+      return;
+    }
+
+    const nextStreamGrids = buildAllStreamGrids(streams, teachers, periods);
+
+    const nextActiveStreamId = activeStreamId || streams[0]?.id || null;
+    const nextActiveStream = streams.find((stream) => stream.id === nextActiveStreamId) || streams[0];
+
+    setStreamGrids(nextStreamGrids);
+    setActiveStreamId(nextActiveStream?.id || null);
+    if (nextActiveStream) {
+      setGrid(nextStreamGrids[nextActiveStream.id] || createGridForLevel(gradeToLevel(nextActiveStream.grade), periods));
+      setClassName(formatStreamLabel(nextActiveStream));
+    }
+
+    setMasterData({
+      schoolName,
+      term,
+      year,
+      classes: streams.map((stream) => ({
+        name: formatStreamLabel(stream),
+        level: gradeToLevel(stream.grade),
+        grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, periods, gradeToLevel(stream.grade), {}),
+        days: [...DEFAULT_DAYS],
+        periods,
+      })),
+    });
+
+    if (!selectedTeacher && teachers.length > 0) {
+      setSelectedTeacher(teachers[0].name);
+    }
+  }, [streams, teachers, periods, activeStreamId, schoolName, term, year, selectedTeacher]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const reference = params.get('reference');
+    if (!reference || reference === lastVerifiedReference) {
+      return;
+    }
+
+    setLastVerifiedReference(reference);
+    void (async () => {
+      try {
+        const result = await paystackApi.verifyPayment(reference);
+        if (result.subscription_status === 'active') {
+          setIsSubscribed(true);
+          toast({ title: 'Payment verified', description: 'Your subscription is now active.' });
+        }
+      } catch (error: any) {
+        toast({ title: 'Verification error', description: error.message || 'Could not verify payment.', variant: 'destructive' });
+      } finally {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    })();
+  }, [location.search, lastVerifiedReference, toast]);
+
+  useEffect(() => {
+    if (!activeStreamId) return;
+    const activeStream = streams.find((stream) => stream.id === activeStreamId);
+    if (!activeStream) return;
+
+    const currentGrid = streamGrids[activeStreamId];
+    if (currentGrid) {
+      setGrid(currentGrid);
+    }
+    setClassName(formatStreamLabel(activeStream));
+  }, [activeStreamId, streamGrids, streams]);
 
   const switchLevel = (level: ActiveLevel) => {
     const info = LEVELS.find((l) => l.key === level)!;
@@ -130,13 +385,41 @@ const Timetables = () => {
 
   const handleCellChange = useCallback(
     (dayIdx: number, periodIdx: number, data: CellData) => {
+      const nextTeacher = normalizeText(data.teacher);
+      if (activeStreamId && nextTeacher) {
+        const conflict = streams.some((stream) => {
+          if (stream.id === activeStreamId) return false;
+          const otherCell = streamGrids[stream.id]?.[dayIdx]?.[periodIdx];
+          return normalizeText(otherCell?.teacher || '') === nextTeacher;
+        });
+
+        if (conflict) {
+          toast({
+            title: 'Teacher conflict',
+            description: 'That teacher is already assigned to another stream at the same time.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
       setGrid((prev) => {
         const next = prev.map((row) => [...row]);
         next[dayIdx][periodIdx] = data;
         return next;
       });
+      if (activeStreamId) {
+        setStreamGrids((prev) => {
+          const currentGrid = prev[activeStreamId] || grid;
+          const nextGrid = currentGrid.map((row) => [...row]);
+          if (nextGrid[dayIdx]) {
+            nextGrid[dayIdx][periodIdx] = data;
+          }
+          return { ...prev, [activeStreamId]: nextGrid };
+        });
+      }
     },
-    []
+    [activeStreamId, grid, streamGrids, streams, toast]
   );
 
   const handlePeriodChange = useCallback(
@@ -198,7 +481,20 @@ const Timetables = () => {
     const newPeriods = [...LEVEL_PERIODS[activeLevel]];
     setPeriods(newPeriods);
     setDays([...DEFAULT_DAYS]);
-    setGrid(createGridForLevel(activeLevel, newPeriods));
+
+    if (streams.length > 0 && teachers.length > 0) {
+      const regenerated = buildAllStreamGrids(streams, teachers, newPeriods);
+      setStreamGrids(regenerated);
+
+      const currentStream = activeStreamId ? streams.find((stream) => stream.id === activeStreamId) : streams[0];
+      if (currentStream) {
+        setGrid(regenerated[currentStream.id] || createGridForLevel(gradeToLevel(currentStream.grade), newPeriods));
+        setClassName(formatStreamLabel(currentStream));
+      }
+    } else {
+      setGrid(createGridForLevel(activeLevel, newPeriods));
+    }
+
     toast({ title: 'Reset', description: 'Timetable has been reset.' });
   };
 
@@ -387,11 +683,49 @@ const Timetables = () => {
             )}
           </div>
 
+          {streams.length > 0 && (
+            <Card className="mb-4 border-border/70 bg-card/70 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-bold">Stream Toggles</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Each stream keeps its own timetable. Toggle between them to review or edit individually.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2" role="tablist" aria-label="Stream toggles">
+                  {streams.map((stream) => {
+                    const isActive = stream.id === activeStreamId;
+                    return (
+                      <button
+                        key={stream.id}
+                        type="button"
+                        onClick={() => setActiveStreamId(stream.id)}
+                        aria-pressed={isActive}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-semibold transition-all ${
+                          isActive
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20'
+                            : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
+                        }`}
+                      >
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            isActive ? 'bg-primary-foreground' : 'bg-muted-foreground/50'
+                          }`}
+                        />
+                        {formatStreamLabel(stream)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* A4 Landscape Timetable */}
           <div
             id="timetable-print"
             className="bg-card rounded-xl shadow-lg border border-border overflow-hidden"
-            style={{ maxWidth: '1120px', margin: '0 auto', fontFamily }}
+            style={{ maxWidth: '1400px', margin: '0 auto', fontFamily }}
           >
             <SchoolHeader
               schoolName={schoolName}

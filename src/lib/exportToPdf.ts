@@ -6,14 +6,14 @@ export async function exportTimetableToPdf(elementId: string, fileName: string) 
   if (!element) throw new Error("Timetable element not found");
 
   const originalWidth = element.style.width;
-  element.style.width = "1120px";
+  element.style.width = "1400px";
 
   const canvas = await html2canvas(element, {
     scale: 3,
     useCORS: true,
     backgroundColor: "#ffffff",
     logging: false,
-    windowWidth: 1200,
+    windowWidth: 1440,
   });
 
   element.style.width = originalWidth;

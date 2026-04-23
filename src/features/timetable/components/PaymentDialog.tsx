@@ -44,48 +44,17 @@ export default function PaymentDialog({ open, onOpenChange, schoolId, schoolName
         schoolId,
         schoolName: schoolName || "My School",
         email,
+        callbackUrl: `${window.location.origin}${window.location.pathname}`,
         phone: phone || undefined,
         planType,
         paymentChannel: "card", // Base tracking channel
       });
 
-      // Open Paystack Inline
-      await paystackApi.openInlineCheckout({
-        reference: initResult.reference,
-        email: email,
-        amount: initResult.amount,
-        channels: ["card", "mobile_money"],
-        onSuccess: async (transaction) => {
-          try {
-            await paystackApi.verifyPayment(String(transaction.reference || initResult.reference));
-            toast({
-              title: "Payment Successful",
-              description: "Your subscription has been activated.",
-            });
-            onOpenChange(false);
-            window.location.reload();
-          } catch (verificationError: any) {
-            toast({
-              title: "Payment Verified Locally",
-              description: verificationError.message || "Your payment was captured but could not be confirmed yet.",
-              variant: "destructive",
-            });
-          }
-        },
-        onCancel: () => {
-          toast({
-            title: "Payment Cancelled",
-            description: "You cancelled the payment process.",
-          });
-        },
-        onError: (err) => {
-          toast({
-            title: "Payment Error",
-            description: err.message,
-            variant: "destructive",
-          });
-        }
-      });
+      if (!initResult.access_code) {
+        throw new Error("Paystack did not return an access code.");
+      }
+
+      await paystackApi.openInlineCheckout(initResult.access_code);
     } catch (error: any) {
       console.error("Payment initialization error:", error);
       toast({

@@ -7,14 +7,14 @@ export async function exportTimetableToPdf(elementId: string, fileName: string) 
 
   // Force the element to render at a fixed A4-landscape pixel width for consistency
   const originalWidth = element.style.width;
-  element.style.width = '1120px';
+  element.style.width = '1400px';
 
   const canvas = await html2canvas(element, {
     scale: 3, // Higher resolution for crisp text & colors
     useCORS: true,
     backgroundColor: '#ffffff',
     logging: false,
-    windowWidth: 1200,
+    windowWidth: 1440,
   });
 
   // Restore original width
