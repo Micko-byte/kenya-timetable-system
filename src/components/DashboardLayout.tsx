@@ -34,7 +34,6 @@ import {
 } from "./ui/dropdown-menu";
 import {
   LogOut,
-  Menu,
   Users,
   BookOpen,
   Calendar,
@@ -43,7 +42,7 @@ import {
   UserCircle2,
   CreditCard,
   Building2,
-  X,
+  Sidebar,
 } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/logo.svg";
@@ -78,6 +77,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const menuItems = [
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+    { icon: BookOpen, label: "Streams", path: "/streams" },
+    { icon: Users, label: "Teachers", path: "/teachers" },
+    { icon: Calendar, label: "Timetables", path: "/timetables" },
+  ];
 
   const fetchSchoolData = async () => {
     const {
@@ -166,28 +172,26 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     setSettingsOpen(false);
   };
 
-  const menuItems = [
-    {
-      icon: LayoutDashboard,
-      label: "Dashboard",
-      path: "/dashboard",
-    },
-    { icon: BookOpen, label: "Streams & Classes", path: "/streams" },
-    { icon: Users, label: "Teachers", path: "/teachers" },
-    { icon: Calendar, label: "Timetables", path: "/timetables" },
-  ];
-
   const profileMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="w-full justify-start gap-3 bg-transparent text-white hover:bg-white/10 font-semibold text-base rounded-2xl px-3 py-3 shadow-none">
+        <Button
+          variant="ghost"
+          className={`w-full bg-transparent text-white shadow-none hover:bg-white/10 ${
+            sidebarOpen
+              ? "justify-start gap-3 rounded-2xl px-3 py-3 text-base font-semibold"
+              : "justify-center rounded-2xl p-3"
+          }`}
+        >
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-lg shadow-black/10">
             <UserCircle2 className="h-7 w-7 text-primary" />
           </span>
-          <div className="min-w-0 text-left">
-            <p className="truncate text-white">{schoolName || "Profile"}</p>
-            <p className="truncate text-xs font-normal text-white/70">{getSchoolTypeLabel(schoolType)}</p>
-          </div>
+          {sidebarOpen && (
+            <div className="min-w-0 text-left">
+              <p className="truncate text-white">{schoolName || "Profile"}</p>
+              <p className="truncate text-xs font-normal text-white/70">{getSchoolTypeLabel(schoolType)}</p>
+            </div>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 rounded-2xl border-primary/10 p-2">
@@ -210,7 +214,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <CreditCard className="mr-2 h-4 w-4" />
           Subscription
         </DropdownMenuItem>
-        <DropdownMenuItem className="rounded-xl px-3 py-3 text-destructive focus:text-destructive" onClick={() => setLogoutConfirmOpen(true)}>
+        <DropdownMenuItem
+          className="rounded-xl px-3 py-3 text-destructive focus:text-destructive"
+          onClick={() => setLogoutConfirmOpen(true)}
+        >
           <LogOut className="mr-2 h-4 w-4" />
           Log Out
         </DropdownMenuItem>
@@ -219,107 +226,106 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   );
 
   return (
-    <div className="min-h-screen flex relative overflow-x-hidden overflow-y-visible">
-      {/* Branded Background */}
+    <div className="relative flex min-h-screen overflow-x-hidden overflow-y-visible">
       <div className="fixed inset-0 -z-10 bg-[hsl(var(--background))]" />
       <div className="brand-grid-bg fixed inset-0 -z-10 opacity-100" />
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.12),transparent_32%),radial-gradient(circle_at_top_right,hsl(var(--secondary)/0.12),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,247,255,0.94))]" />
 
-      {/* Sidebar */}
-<aside
-  className={`fixed left-0 top-0 h-screen w-64 bg-[hsl(var(--foreground))] text-white flex flex-col z-40 transition-transform duration-300 ${
-    sidebarOpen ? "translate-x-0" : "-translate-x-full"
-  } md:translate-x-0`}
->
-  {/* Logo Section */}
-  <div className="p-6 border-b border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0))]">
-    <div className="flex items-center gap-3 mb-2">
-      <img src={logo} alt="ElimuTime logo" className="h-14 w-auto object-contain flex-shrink-0" />
-      <div>
-        <h1 className="text-lg font-bold text-white">{schoolName}</h1>
-        <p className="text-xs text-white/70">{getSchoolTypeLabel(schoolType)}</p>
-      </div>
-    </div>
-  </div>
+      <aside
+        className={`fixed left-0 top-0 z-40 hidden h-screen flex-col bg-[hsl(var(--foreground))] text-white transition-all duration-300 md:flex ${
+          sidebarOpen ? "w-64" : "w-24"
+        }`}
+      >
+        <div className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0))] p-6">
+          {sidebarOpen ? (
+            <div className="flex items-center justify-between gap-3">
+              <img src={logo} alt="ElimuTime logo" className="h-14 w-auto flex-shrink-0 object-contain" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(false)}
+                className="h-10 w-10 rounded-xl bg-transparent p-0 text-white hover:bg-transparent hover:text-white/80"
+                aria-label="Collapse sidebar"
+              >
+                <Sidebar className="h-5 w-5" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <img src={logo} alt="ElimuTime logo" className="h-12 w-auto flex-shrink-0 object-contain" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(true)}
+                className="h-10 w-10 rounded-xl bg-transparent p-0 text-white hover:bg-transparent hover:text-white/80"
+                aria-label="Expand sidebar"
+              >
+                <Sidebar className="h-5 w-5" />
+              </Button>
+            </div>
+          )}
+        </div>
 
-  {/* Navigation Items */}
-  <nav className="flex-1 py-4 pl-4 space-y-4">
-    {menuItems.map((item) => (
-      <div key={item.path} className="relative">
-        <button
-          onClick={() => {
-            navigate(item.path);
-            setSidebarOpen(false);
-          }}
-          className={`flex items-center gap-4 w-full px-4 py-3 rounded-l-full transition-all duration-300 group relative ${
-            location.pathname === item.path
-              ? "bg-white/95 font-semibold shadow-lg shadow-black/10"
-              : "text-white/80 hover:bg-white/10 rounded-2xl"
-          }`}
-        >
-          <item.icon className={`w-5 h-5 flex-shrink-0 transition-colors ${
-            location.pathname === item.path 
-              ? "text-primary" 
-              : "text-white/80 group-hover:text-white"
-          }`} />
-          <span className={`font-normal text-sm transition-colors ${
-            location.pathname === item.path 
-              ? "text-primary" 
-              : "text-white/80 group-hover:text-white"
-          }`}>
-            {item.label}
-          </span>
-        </button>
-        
- {/* Top rounded cutout */}
-{location.pathname === item.path && (
-  <>
-    <div className="absolute -top-4 right-0 w-4 h-4 bg-transparent">
-      <div className="w-full h-full bg-[hsl(var(--foreground))] rounded-r-lg"></div>
-    </div>
-    {/* Bottom rounded cutout */}
-    <div className="absolute -bottom-4 right-0 w-4 h-4 bg-transparent">
-      <div className="w-full h-full bg-[hsl(var(--foreground))] rounded-r-lg"></div>
-    </div>
-  </>
-)}
+        <nav className={`flex-1 space-y-4 py-4 ${sidebarOpen ? "pl-4" : "px-3"}`}>
+          {menuItems.map((item) => (
+            <div key={item.path} className="relative">
+              <button
+                onClick={() => navigate(item.path)}
+                className={`group relative flex w-full items-center px-4 py-3 transition-all duration-300 ${
+                  location.pathname === item.path
+                    ? `bg-white/95 font-semibold shadow-lg shadow-black/10 ${sidebarOpen ? "gap-4 rounded-l-full" : "justify-center rounded-2xl"}`
+                    : `text-white/80 hover:bg-white/10 ${sidebarOpen ? "gap-4 rounded-2xl" : "justify-center rounded-2xl"}`
+                }`}
+              >
+                <item.icon
+                  className={`h-5 w-5 flex-shrink-0 transition-colors ${
+                    location.pathname === item.path ? "text-primary" : "text-white/80 group-hover:text-white"
+                  }`}
+                />
+                {sidebarOpen && (
+                  <span
+                    className={`text-sm font-normal transition-colors ${
+                      location.pathname === item.path ? "text-primary" : "text-white/80 group-hover:text-white"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                )}
+              </button>
 
-
-      </div>
-    ))}
-  </nav>
-
-  {/* Profile Menu */}
-  <div className="p-4 border-t border-white/10">
-    {profileMenu}
-  </div>
-</aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 md:ml-60 w-full md:w-auto min-h-screen overflow-x-hidden overflow-y-auto">
-        {/* Top Bar with Menu Toggle */}
-        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-primary/10 shadow-sm md:hidden">
-          <div className="flex items-center justify-between gap-3 px-4 py-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              {sidebarOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
+              {location.pathname === item.path && sidebarOpen && (
+                <>
+                  <div className="absolute -top-4 right-0 h-4 w-4 bg-transparent">
+                    <div className="h-full w-full rounded-r-lg bg-[hsl(var(--foreground))]" />
+                  </div>
+                  <div className="absolute -bottom-4 right-0 h-4 w-4 bg-transparent">
+                    <div className="h-full w-full rounded-r-lg bg-[hsl(var(--foreground))]" />
+                  </div>
+                </>
               )}
-            </Button>
+            </div>
+          ))}
+        </nav>
+
+        <div className="border-t border-white/10 p-4">{profileMenu}</div>
+      </aside>
+
+      <div
+        className={`min-h-screen w-full flex-1 overflow-x-hidden overflow-y-auto transition-[margin] duration-300 ${
+          sidebarOpen ? "md:ml-64" : "md:ml-24"
+        }`}
+      >
+        <header className="sticky top-0 z-30 border-b border-primary/10 bg-white/95 shadow-sm backdrop-blur-md md:hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-4">
             <div className="min-w-0 flex-1 text-center">
               <h2 className="truncate text-sm font-bold text-foreground">{schoolName}</h2>
               <p className="text-xs text-muted-foreground">{getSchoolTypeLabel(schoolType)}</p>
             </div>
-            <div className="md:hidden">
+            <div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="rounded-full">
-                    <UserCircle2 className="w-5 h-5" />
+                    <UserCircle2 className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72 rounded-2xl border-primary/10 p-2">
@@ -342,7 +348,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     <CreditCard className="mr-2 h-4 w-4" />
                     Subscription
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="rounded-xl px-3 py-3 text-destructive focus:text-destructive" onClick={() => setLogoutConfirmOpen(true)}>
+                  <DropdownMenuItem
+                    className="rounded-xl px-3 py-3 text-destructive focus:text-destructive"
+                    onClick={() => setLogoutConfirmOpen(true)}
+                  >
                     <LogOut className="mr-2 h-4 w-4" />
                     Log Out
                   </DropdownMenuItem>
@@ -352,8 +361,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="overflow-x-hidden px-4 py-6 md:p-8">
+        <main className="overflow-x-hidden px-4 py-6 pb-24 md:p-8">
           <div className="mx-auto max-w-6xl overflow-x-hidden">
             <div className="overflow-x-hidden rounded-[2rem] border border-primary/10 bg-white/95 p-4 shadow-[0_24px_60px_rgba(1,16,39,0.08)] backdrop-blur-sm sm:p-6 md:p-8">
               {children}
@@ -362,13 +370,27 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </main>
       </div>
 
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <nav className="fixed inset-x-4 bottom-4 z-40 rounded-[1.75rem] border border-primary/10 bg-white/95 p-2 shadow-[0_24px_60px_rgba(1,16,39,0.14)] backdrop-blur-md md:hidden">
+        <div className="grid grid-cols-4 gap-1">
+          {menuItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition-all ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <item.icon className="h-4 w-4" />
+                <span className="text-center leading-tight">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-w-2xl rounded-[2rem] border-primary/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,250,255,0.96))]">
@@ -434,7 +456,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 </div>
               </div>
             </Card>
-
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">
@@ -483,7 +504,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     setSubscriptionOpen(false);
                     navigate("/billing");
                   }}
-                  className="gradient-primary text-white hover:opacity-90 font-semibold"
+                  className="gradient-primary font-semibold text-white hover:opacity-90"
                 >
                   Manage Plan
                 </Button>

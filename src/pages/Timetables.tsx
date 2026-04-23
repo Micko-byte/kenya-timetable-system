@@ -1,8 +1,19 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, RotateCcw, FileText, GraduationCap, Plus, X, Palette } from 'lucide-react';
+import {
+  Download,
+  RotateCcw,
+  FileText,
+  GraduationCap,
+  ChevronDown,
+  BookOpenCheck,
+  ChevronRight,
+  Wand2,
+  Maximize2,
+  Minimize2,
+} from 'lucide-react';
 import SchoolHeader from '@/features/timetable/components/SchoolHeader';
 import TimetableGridComponent from '@/features/timetable/components/TimetableGrid';
 import SubjectManager from '@/features/timetable/components/SubjectManager';
@@ -18,8 +29,19 @@ import { exportTimetableToPdf } from '@/features/timetable/lib/exportToPdf';
 import { useToast } from '@/hooks/use-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 import PaymentDialog from '@/features/timetable/components/PaymentDialog';
-import { useLocation } from 'react-router-dom';
-import { paystackApi } from '@/lib/paystack';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type ActiveLevel = Exclude<EducationLevel, 'common'>;
 type StreamRecord = { id: string; grade: number; stream_name: string };
@@ -40,6 +62,15 @@ const LEVELS: { key: ActiveLevel; defaultSchool: string; defaultClass: string }[
   { key: 'senior_secondary', defaultSchool: 'Brightstone Schools Senior School', defaultClass: 'Grade 11 - STEM' },
   { key: 'eight_four_four', defaultSchool: 'Brightstone Schools Secondary', defaultClass: 'Form 2A' },
 ];
+
+const LEVEL_ACCENTS: Record<ActiveLevel, string> = {
+  pre_primary: 'bg-rose-500',
+  lower_primary: 'bg-orange-500',
+  upper_primary: 'bg-amber-500',
+  junior_secondary: 'bg-emerald-500',
+  senior_secondary: 'bg-sky-500',
+  eight_four_four: 'bg-violet-500',
+};
 
 const gradeToLevel = (grade: number): ActiveLevel => {
   if (grade <= 3) return 'lower_primary';
@@ -68,9 +99,12 @@ function pickTeacherForSubject(
   );
   const assignedMatches = teachers.filter(
     (teacher) =>
-      teacher.assignedStreamIds.includes(stream.id) && teacher.subjects.some((teacherSubject) => normalizeText(teacherSubject) === normalizeText(subject)),
+      teacher.assignedStreamIds.includes(stream.id) &&
+      teacher.subjects.some((teacherSubject) => normalizeText(teacherSubject) === normalizeText(subject)),
   );
-  const generalMatches = teachers.filter((teacher) => teacher.subjects.some((teacherSubject) => normalizeText(teacherSubject) === normalizeText(subject)));
+  const generalMatches = teachers.filter((teacher) =>
+    teacher.subjects.some((teacherSubject) => normalizeText(teacherSubject) === normalizeText(subject)),
+  );
 
   const candidateTeachers = [...exactMatches, ...assignedMatches, ...generalMatches].filter(
     (teacher, index, list) => list.findIndex((item) => item.id === teacher.id) === index,
@@ -116,9 +150,7 @@ function buildStreamGrid(
 
   const assignedTeacherSubjects = Array.from(
     new Set(
-      teachers.flatMap((teacher) =>
-        teacher.assignedStreamIds.includes(stream.id) ? teacher.subjects : [],
-      ),
+      teachers.flatMap((teacher) => (teacher.assignedStreamIds.includes(stream.id) ? teacher.subjects : [])),
     ),
   ).filter(Boolean);
 
@@ -167,7 +199,6 @@ function buildAllStreamGrids(streams: StreamRecord[], teachers: TeacherRecord[],
 
 const Timetables = () => {
   const { toast } = useToast();
-  const location = useLocation();
   const [activeLevel, setActiveLevel] = useState<ActiveLevel>('eight_four_four');
   const [schoolName, setSchoolName] = useState('Brightstone Schools Secondary');
   const [fontFamily, setFontFamily] = useState(FONT_OPTIONS[0].value);
@@ -189,17 +220,20 @@ const Timetables = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
-  const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [streams, setStreams] = useState<StreamRecord[]>([]);
   const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
   const [streamGrids, setStreamGrids] = useState<Record<string, TimetableGrid>>({});
-  const [lastVerifiedReference, setLastVerifiedReference] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [showLevelScrollCue, setShowLevelScrollCue] = useState(false);
+  const levelScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const fetchUserSchool = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: profile } = await supabase
@@ -208,24 +242,21 @@ const Timetables = () => {
         .eq('id', user.id)
         .maybeSingle();
 
-      if (profile?.school_id) {
-        const { data: schoolData } = await supabase
-          .from('schools')
-          .select('name')
-          .eq('id', profile.school_id)
-          .maybeSingle();
+      if (!profile?.school_id) {
+        return;
+      }
 
-        if (schoolData?.name) {
-          setSchoolName(schoolData.name);
-        }
+      const { data: schoolData } = await supabase
+        .from('schools')
+        .select('name')
+        .eq('id', profile.school_id)
+        .maybeSingle();
 
-      setSchoolId(profile.school_id);
-      setUserEmail(user.email || null);
+      if (schoolData?.name) {
+        setSchoolName(schoolData.name);
+      }
 
-      const [
-        { data: streamsData },
-        { data: teachersData },
-      ] = await Promise.all([
+      const [{ data: streamsData }, { data: teachersData }, { data: subData }, { count }] = await Promise.all([
         supabase
           .from('streams')
           .select('id, grade, stream_name')
@@ -241,15 +272,22 @@ const Timetables = () => {
             teacher_subject_classes(stream_id, subjects(name))
           `)
           .eq('school_id', profile.school_id),
+        supabase
+          .from('subscriptions')
+          .select('status')
+          .eq('school_id', profile.school_id)
+          .maybeSingle(),
+        supabase
+          .from('timetables')
+          .select('*', { count: 'exact', head: true })
+          .eq('school_id', profile.school_id),
       ]);
 
       const formattedTeachers: TeacherRecord[] = (teachersData || []).map((teacher: any) => ({
         id: teacher.id,
         name: teacher.name,
-        subjects:
-          teacher.teacher_subjects?.map((entry: any) => entry.subjects?.name).filter(Boolean) || [],
-        assignedStreamIds:
-          teacher.teacher_assigned_classes?.map((entry: any) => entry.stream_id).filter(Boolean) || [],
+        subjects: teacher.teacher_subjects?.map((entry: any) => entry.subjects?.name).filter(Boolean) || [],
+        assignedStreamIds: teacher.teacher_assigned_classes?.map((entry: any) => entry.stream_id).filter(Boolean) || [],
         subjectClassLinks:
           teacher.teacher_subject_classes?.map((entry: any) => ({
             subject: entry.subjects?.name || '',
@@ -259,41 +297,24 @@ const Timetables = () => {
 
       setStreams((streamsData || []) as StreamRecord[]);
       setTeachers(formattedTeachers);
+      setIsSubscribed(subData?.status === 'active');
+      setUsageCount(count || 0);
 
-      // Fetch subscription status
-      const { data: subData } = await supabase
-        .from('subscriptions')
-        .select('status')
-          .eq('school_id', profile.school_id)
-          .maybeSingle();
-        
-        setIsSubscribed(subData?.status === 'active');
-
-        // Fetch usage count
-        const { count } = await supabase
-          .from('timetables')
-          .select('*', { count: 'exact', head: true })
-          .eq('school_id', profile.school_id);
-        
-        setUsageCount(count || 0);
-
-        if ((streamsData || []).length > 0) {
-          const initialStream = (streamsData || [])[0] as StreamRecord;
-          setActiveStreamId(initialStream.id);
-        }
+      if ((streamsData || []).length > 0) {
+        const initialStream = (streamsData || [])[0] as StreamRecord;
+        setActiveStreamId(initialStream.id);
       }
     };
 
-    fetchUserSchool();
+    void fetchUserSchool();
   }, []);
 
   useEffect(() => {
-    if (streams.length === 0 || teachers.length === 0) {
+    if (streams.length === 0) {
       return;
     }
 
     const nextStreamGrids = buildAllStreamGrids(streams, teachers, periods);
-
     const nextActiveStreamId = activeStreamId || streams[0]?.id || null;
     const nextActiveStream = streams.find((stream) => stream.id === nextActiveStreamId) || streams[0];
 
@@ -322,28 +343,39 @@ const Timetables = () => {
     }
   }, [streams, teachers, periods, activeStreamId, schoolName, term, year, selectedTeacher]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const reference = params.get('reference');
-    if (!reference || reference === lastVerifiedReference) {
-      return;
-    }
-
-    setLastVerifiedReference(reference);
-    void (async () => {
-      try {
-        const result = await paystackApi.verifyPayment(reference);
-        if (result.subscription_status === 'active') {
-          setIsSubscribed(true);
-          toast({ title: 'Payment verified', description: 'Your subscription is now active.' });
-        }
-      } catch (error: any) {
-        toast({ title: 'Verification error', description: error.message || 'Could not verify payment.', variant: 'destructive' });
-      } finally {
-        window.history.replaceState({}, document.title, window.location.pathname);
+  const buildGeneratedState = useCallback(
+    (nextPeriods: PeriodSlot[] = periods) => {
+      if (streams.length === 0) {
+        return null;
       }
-    })();
-  }, [location.search, lastVerifiedReference, toast]);
+
+      const nextStreamGrids = buildAllStreamGrids(streams, teachers, nextPeriods);
+      const nextActiveStreamId = activeStreamId || streams[0]?.id || null;
+      const nextActiveStream = streams.find((stream) => stream.id === nextActiveStreamId) || streams[0];
+
+      return {
+        streamGrids: nextStreamGrids,
+        activeStream: nextActiveStream,
+        grid:
+          nextActiveStream
+            ? nextStreamGrids[nextActiveStream.id] || createGridForLevel(gradeToLevel(nextActiveStream.grade), nextPeriods)
+            : createGridForLevel(activeLevel, nextPeriods),
+        masterData: {
+          schoolName,
+          term,
+          year,
+          classes: streams.map((stream) => ({
+            name: formatStreamLabel(stream),
+            level: gradeToLevel(stream.grade),
+            grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, nextPeriods, gradeToLevel(stream.grade), {}),
+            days: [...DEFAULT_DAYS],
+            periods: nextPeriods,
+          })),
+        } satisfies MasterTimetable,
+      };
+    },
+    [activeLevel, activeStreamId, periods, schoolName, streams, teachers, term, year],
+  );
 
   useEffect(() => {
     if (!activeStreamId) return;
@@ -357,30 +389,49 @@ const Timetables = () => {
     setClassName(formatStreamLabel(activeStream));
   }, [activeStreamId, streamGrids, streams]);
 
+  useEffect(() => {
+    const element = levelScrollRef.current;
+    if (!element) return;
+
+    const updateScrollCue = () => {
+      const canScroll = element.scrollWidth > element.clientWidth + 8;
+      const atEnd = element.scrollLeft + element.clientWidth >= element.scrollWidth - 8;
+      setShowLevelScrollCue(canScroll && !atEnd);
+    };
+
+    updateScrollCue();
+    element.addEventListener('scroll', updateScrollCue);
+    window.addEventListener('resize', updateScrollCue);
+
+    return () => {
+      element.removeEventListener('scroll', updateScrollCue);
+      window.removeEventListener('resize', updateScrollCue);
+    };
+  }, []);
+
   const switchLevel = (level: ActiveLevel) => {
-    const info = LEVELS.find((l) => l.key === level)!;
+    const info = LEVELS.find((item) => item.key === level)!;
     setActiveLevel(level);
     setClassName(info.defaultClass);
     const newPeriods = [...LEVEL_PERIODS[level]];
     setPeriods(newPeriods);
     setDays([...DEFAULT_DAYS]);
-    const newGrid = createGridForLevel(level, newPeriods);
-    setGrid(newGrid);
-    toast({ title: `${EDUCATION_LEVELS[level].emoji} ${EDUCATION_LEVELS[level].label}`, description: 'Template loaded.' });
+    setGrid(createGridForLevel(level, newPeriods));
+    toast({ title: EDUCATION_LEVELS[level].label, description: 'Template loaded.' });
   };
 
   const addDay = () => {
-    const available = ALL_DAYS.filter(d => !days.includes(d));
+    const available = ALL_DAYS.filter((day) => !days.includes(day));
     if (available.length === 0) return;
     const newDay = available[0];
-    setDays(prev => [...prev, newDay]);
-    setGrid(prev => [...prev, periods.map(() => ({ subject: '', teacher: '' }))]);
+    setDays((prev) => [...prev, newDay]);
+    setGrid((prev) => [...prev, periods.map(() => ({ subject: '', teacher: '' }))]);
   };
 
   const removeDay = (idx: number) => {
     if (days.length <= 1) return;
-    setDays(prev => prev.filter((_, i) => i !== idx));
-    setGrid(prev => prev.filter((_, i) => i !== idx));
+    setDays((prev) => prev.filter((_, index) => index !== idx));
+    setGrid((prev) => prev.filter((_, index) => index !== idx));
   };
 
   const handleCellChange = useCallback(
@@ -408,6 +459,7 @@ const Timetables = () => {
         next[dayIdx][periodIdx] = data;
         return next;
       });
+
       if (activeStreamId) {
         setStreamGrids((prev) => {
           const currentGrid = prev[activeStreamId] || grid;
@@ -419,28 +471,33 @@ const Timetables = () => {
         });
       }
     },
-    [activeStreamId, grid, streamGrids, streams, toast]
+    [activeStreamId, grid, streamGrids, streams, toast],
   );
 
-  const handlePeriodChange = useCallback(
-    (periodIdx: number, slot: PeriodSlot) => {
-      setPeriods((prev) => {
-        const next = [...prev];
-        next[periodIdx] = slot;
-        return next;
-      });
-    },
-    []
-  );
+  const handlePeriodChange = useCallback((periodIdx: number, slot: PeriodSlot) => {
+    setPeriods((prev) => {
+      const next = [...prev];
+      next[periodIdx] = slot;
+      return next;
+    });
+  }, []);
 
   const handleExportXls = async () => {
     if (!isSubscribed && usageCount >= 10) {
-      toast({ title: 'Usage Limit Reached', description: 'Free users are limited to 10 generated timetables. Please subscribe to unlock unlimited usage.', variant: 'destructive' });
+      toast({
+        title: 'Usage Limit Reached',
+        description: 'Free users are limited to 10 generated timetables. Please subscribe to unlock unlimited usage.',
+        variant: 'destructive',
+      });
       setShowPaymentDialog(true);
       return;
     }
     if (!isSubscribed) {
-      toast({ title: 'Subscription Required', description: 'Excel export is a premium feature. Please subscribe to download.', variant: 'destructive' });
+      toast({
+        title: 'Subscription Required',
+        description: 'Excel export is a premium feature. Please subscribe to download.',
+        variant: 'destructive',
+      });
       setShowPaymentDialog(true);
       return;
     }
@@ -457,12 +514,20 @@ const Timetables = () => {
 
   const handleExportPdf = async () => {
     if (!isSubscribed && usageCount >= 10) {
-      toast({ title: 'Usage Limit Reached', description: 'Free users are limited to 10 generated timetables. Please subscribe to unlock unlimited usage.', variant: 'destructive' });
+      toast({
+        title: 'Usage Limit Reached',
+        description: 'Free users are limited to 10 generated timetables. Please subscribe to unlock unlimited usage.',
+        variant: 'destructive',
+      });
       setShowPaymentDialog(true);
       return;
     }
     if (!isSubscribed) {
-      toast({ title: 'Subscription Required', description: 'PDF export is a premium feature. Please subscribe to download.', variant: 'destructive' });
+      toast({
+        title: 'Subscription Required',
+        description: 'PDF export is a premium feature. Please subscribe to download.',
+        variant: 'destructive',
+      });
       setShowPaymentDialog(true);
       return;
     }
@@ -482,14 +547,14 @@ const Timetables = () => {
     setPeriods(newPeriods);
     setDays([...DEFAULT_DAYS]);
 
-    if (streams.length > 0 && teachers.length > 0) {
-      const regenerated = buildAllStreamGrids(streams, teachers, newPeriods);
-      setStreamGrids(regenerated);
-
-      const currentStream = activeStreamId ? streams.find((stream) => stream.id === activeStreamId) : streams[0];
-      if (currentStream) {
-        setGrid(regenerated[currentStream.id] || createGridForLevel(gradeToLevel(currentStream.grade), newPeriods));
-        setClassName(formatStreamLabel(currentStream));
+    const generated = buildGeneratedState(newPeriods);
+    if (generated) {
+      setStreamGrids(generated.streamGrids);
+      setMasterData(generated.masterData);
+      setActiveStreamId(generated.activeStream?.id || null);
+      setGrid(generated.grid);
+      if (generated.activeStream) {
+        setClassName(formatStreamLabel(generated.activeStream));
       }
     } else {
       setGrid(createGridForLevel(activeLevel, newPeriods));
@@ -498,8 +563,45 @@ const Timetables = () => {
     toast({ title: 'Reset', description: 'Timetable has been reset.' });
   };
 
+  const handleGenerate = () => {
+    if (streams.length === 0) {
+      toast({
+        title: 'No streams yet',
+        description: 'Add at least one stream before generating a timetable.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    const generated = buildGeneratedState();
+
+    if (!generated) {
+      setIsGenerating(false);
+      return;
+    }
+
+    setStreamGrids(generated.streamGrids);
+    setMasterData(generated.masterData);
+    setActiveStreamId(generated.activeStream?.id || null);
+    setGrid(generated.grid);
+    if (generated.activeStream) {
+      setClassName(formatStreamLabel(generated.activeStream));
+    }
+
+    if (!selectedTeacher && teachers.length > 0) {
+      setSelectedTeacher(teachers[0].name);
+    }
+
+    window.setTimeout(() => setIsGenerating(false), 300);
+    toast({
+      title: 'Timetables generated',
+      description: 'Your stream timetables are ready for review and export.',
+    });
+  };
+
   const handleAddSubject = (name: string) => setCustomSubjects((prev) => [...prev, name]);
-  const handleRemoveSubject = (name: string) => setCustomSubjects((prev) => prev.filter((s) => s !== name));
+  const handleRemoveSubject = (name: string) => setCustomSubjects((prev) => prev.filter((subject) => subject !== name));
 
   const handleJsonImport = (json: string) => {
     const result = parseTimetableJSON(json);
@@ -509,190 +611,247 @@ const Timetables = () => {
         setSchoolName(result.master.schoolName);
         setTerm(result.master.term);
         setYear(result.master.year);
-        // Default to the first class grid
         setGrid(result.master.classes[0].grid);
         setClassName(result.master.classes[0].name);
         setActiveLevel(result.master.classes[0].level);
-        toast({ title: 'Master Imported', description: `Loaded ${result.master.classes.length} classes for ${result.master.schoolName}.` });
+        toast({
+          title: 'Master Imported',
+          description: `Loaded ${result.master.classes.length} classes for ${result.master.schoolName}.`,
+        });
       } else {
         setGrid(result.grid);
       }
-      if (result.subjects) setCustomSubjects((prev) => [...new Set([...prev, ...result.subjects!])]);
+      if (result.subjects) {
+        setCustomSubjects((prev) => [...new Set([...prev, ...result.subjects!])]);
+      }
       toast({ title: 'Imported', description: 'Timetable loaded from JSON.' });
     } else {
       toast({ title: 'Error', description: 'Invalid JSON format.', variant: 'destructive' });
     }
   };
 
-  const levelInfo = EDUCATION_LEVELS[activeLevel];
-  const subjectCount = getSubjectsByLevel(activeLevel).filter(s => !['BREAK','LUNCH','Games'].includes(s)).length;
+  const previewGrid =
+    viewMode === 'teacher' && masterData && selectedTeacher
+      ? aggregateTeacherTimetable(masterData, selectedTeacher).grid
+      : grid;
+
+  const teacherOptions = masterData
+    ? [...new Set(masterData.classes.flatMap((classItem) => classItem.grid.flatMap((row) => row.map((cell) => cell.teacher))))]
+        .filter((teacher) => teacher.trim() !== '')
+        .sort()
+    : [];
+
+  const timetableContent = (fullscreen = false) => (
+    <div
+      id="timetable-print"
+      className={`overflow-hidden rounded-2xl border border-border bg-card shadow-lg ${fullscreen ? 'h-full' : ''}`}
+      style={{ maxWidth: '1400px', margin: '0 auto', fontFamily }}
+    >
+      <SchoolHeader
+        schoolName={schoolName}
+        className={viewMode === 'teacher' ? `TEACHER: ${selectedTeacher || 'Unassigned'}` : className}
+        term={term}
+        year={year}
+        onSchoolNameChange={setSchoolName}
+        onClassNameChange={setClassName}
+        onTermChange={setTerm}
+        onYearChange={setYear}
+        theme={theme}
+      />
+      <div className={`p-1.5 ${fullscreen ? 'h-[calc(100%-88px)] overflow-auto' : ''}`}>
+        {viewMode === 'teacher' && masterData && (
+          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-3 sm:flex-row sm:items-center">
+            <span className="text-sm font-medium text-muted-foreground">Select Teacher:</span>
+            <select
+              className="rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium outline-none focus:ring-1 focus:ring-primary"
+              value={selectedTeacher || ''}
+              onChange={(event) => setSelectedTeacher(event.target.value)}
+            >
+              <option value="" disabled>Choose a teacher...</option>
+              {teacherOptions.map((teacher) => (
+                <option key={teacher} value={teacher}>{teacher}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <TimetableGridComponent
+          grid={previewGrid}
+          days={days}
+          periods={periods}
+          onCellChange={handleCellChange}
+          onPeriodChange={handlePeriodChange}
+          theme={theme}
+          customSubjects={customSubjects}
+          colorless={colorless}
+          rowColors={rowColors}
+          colColors={colColors}
+          onRowColorChange={(idx, color) => setRowColors((prev) => ({ ...prev, [idx]: color }))}
+          onColColorChange={(idx, color) => setColColors((prev) => ({ ...prev, [idx]: color }))}
+          viewMode={viewMode}
+          isGenerating={isGenerating}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-background py-4 px-3">
-        <div className="max-w-[1200px] mx-auto">
-          {/* Top bar */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-xl font-display font-extrabold text-foreground flex items-center gap-2">
-                🇰🇪 Kenya School Timetable Creator
+      <div className="min-h-screen bg-background px-3 py-4 md:px-4 md:py-6">
+        <div className="mx-auto max-w-[1320px] space-y-6">
+          <div className="space-y-5">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-primary">
+                Kenya School Timetable Creator
               </h1>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                Click any cell to edit • Click time headers to edit periods • CBC & 8-4-4 Curriculum
+              <p className="mt-2 text-sm text-muted-foreground">
+                Generate, inspect, preview, and export your school timetable from one clean workspace.
               </p>
             </div>
-            <div className="flex gap-2 items-center flex-wrap">
-              <FontSelector value={fontFamily} onChange={setFontFamily} />
-              <button
-                onClick={() => setColorless(!colorless)}
-                className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1.5 rounded-md border transition-all ${
-                  colorless
-                    ? 'bg-foreground text-background border-foreground'
-                    : 'bg-card text-foreground border-border hover:border-primary/50'
-                }`}
-                title={colorless ? 'Enable subject colors' : 'Disable subject colors (B&W)'}
-              >
-                <Palette className="w-3 h-3" />
-                {colorless ? 'B&W' : 'Color'}
-              </button>
-              <div className="flex bg-muted p-0.5 rounded-md border border-border">
-                <button
-                  onClick={() => setViewMode('stream')}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-sm transition-all ${
-                    viewMode === 'stream' 
-                      ? 'bg-background text-primary shadow-sm' 
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Stream View
-                </button>
-                <button
-                  onClick={() => setViewMode('teacher')}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-sm transition-all ${
-                    viewMode === 'teacher' 
-                      ? 'bg-background text-primary shadow-sm' 
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Teacher View
-                </button>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleReset} className="text-xs h-8">
-                <RotateCcw className="w-3 h-3 mr-1" /> Reset
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportPdf} className="text-xs h-8">
-                <FileText className="w-3 h-3 mr-1" /> PDF
-              </Button>
-              <Button size="sm" onClick={handleExportXls} className="text-xs h-8">
-                <Download className="w-3 h-3 mr-1" /> Excel
-              </Button>
-            </div>
-          </div>
 
-          <Card className="mb-4 border-primary/10 bg-primary/5 p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="max-w-xl">
-                <h2 className="text-sm font-bold text-foreground">Quick timetable guide</h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Use this flow when building a new timetable. It keeps the editor readable and makes teacher review easier.
-                </p>
-              </div>
-              <div className="grid gap-2 text-xs md:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-lg border border-border bg-background p-3">
-                  <div className="font-semibold">1. Pick a level</div>
-                  <div className="text-muted-foreground mt-1">Choose CBC or 8-4-4 so the right period template loads.</div>
-                </div>
-                <div className="rounded-lg border border-border bg-background p-3">
-                  <div className="font-semibold">2. Edit times</div>
-                  <div className="text-muted-foreground mt-1">Click a time header to edit the start and end timestamps.</div>
-                </div>
-                <div className="rounded-lg border border-border bg-background p-3">
-                  <div className="font-semibold">3. Fill lessons</div>
-                  <div className="text-muted-foreground mt-1">Click any cell to set the subject and teacher for that period.</div>
-                </div>
-                <div className="rounded-lg border border-border bg-background p-3">
-                  <div className="font-semibold">4. Switch views</div>
-                  <div className="text-muted-foreground mt-1">Use teacher view to inspect one teacher's weekly load.</div>
-                </div>
-                <div className="rounded-lg border border-border bg-background p-3">
-                  <div className="font-semibold">5. Export when ready</div>
-                  <div className="text-muted-foreground mt-1">PDF and Excel export unlock after subscription is verified.</div>
-                </div>
-              </div>
-            </div>
-          </Card>
+            <div className="rounded-[1.75rem] border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm md:p-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="flex flex-1 flex-wrap items-center justify-center gap-2 xl:justify-start">
+                  <FontSelector value={fontFamily} onChange={setFontFamily} />
 
-          {/* Education Level Selector */}
-          <div className="bg-card border border-border rounded-xl p-3 mb-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-2.5">
-              <GraduationCap className="w-4 h-4 text-primary" />
-              <span className="text-xs font-display font-bold text-foreground">Select Education Level</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">
-                {levelInfo.emoji} {levelInfo.label} • {subjectCount} subjects • {periods.length} periods
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-              {LEVELS.map(({ key }) => {
-                const info = EDUCATION_LEVELS[key];
-                const count = getSubjectsByLevel(key).filter(s => !['BREAK','LUNCH','Games'].includes(s)).length;
-                const isActive = activeLevel === key;
-                return (
+                  <Button
+                    size="sm"
+                    onClick={handleGenerate}
+                    className="h-10 rounded-full px-4 text-sm font-medium"
+                  >
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    Generate
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPreviewOpen(true)}
+                    className="h-10 rounded-full px-4 text-sm"
+                  >
+                    <Maximize2 className="mr-2 h-4 w-4" />
+                    Preview
+                  </Button>
+
                   <button
-                    key={key}
-                    onClick={() => switchLevel(key)}
-                    className={`relative group rounded-lg border-2 p-2.5 text-left transition-all duration-200 ${
-                      isActive
-                        ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md scale-[1.02]'
-                        : 'border-border hover:border-primary/40 hover:bg-muted/50'
+                    onClick={() => setViewMode('stream')}
+                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-all ${
+                      viewMode === 'stream'
+                        ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                        : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5'
                     }`}
                   >
-                    <div className="text-lg mb-0.5">{info.emoji}</div>
-                    <div className={`text-[10px] font-bold leading-tight ${isActive ? 'text-primary' : 'text-foreground'}`}>
-                      {info.label}
-                    </div>
-                    <div className="text-[9px] text-muted-foreground mt-0.5">{count} subjects</div>
-                    {isActive && (
-                      <div className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    )}
+                    Stream View
                   </button>
-                );
-              })}
+
+                  <button
+                    onClick={() => setViewMode('teacher')}
+                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-all ${
+                      viewMode === 'teacher'
+                        ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                        : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5'
+                    }`}
+                  >
+                    Teacher View
+                  </button>
+
+                  <Button variant="outline" size="sm" onClick={handleReset} className="h-10 rounded-full px-4 text-sm">
+                    <RotateCcw className="mr-2 h-4 w-4" /> Reset
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setGuideOpen(true)}
+                    className="h-10 rounded-full px-4 text-sm"
+                  >
+                    <BookOpenCheck className="mr-2 h-4 w-4" /> Guide
+                  </Button>
+                </div>
+
+                <div className="flex justify-center xl:justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" className="h-10 rounded-full px-4 text-sm">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem onClick={() => void handleExportPdf()}>
+                        <FileText className="mr-2 h-4 w-4" />
+                        PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => void handleExportXls()}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Excel
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Day Management */}
-          <div className="flex items-center gap-2 mb-2 max-w-[1120px] mx-auto">
-            <span className="text-[10px] font-bold text-muted-foreground">Days:</span>
-            {days.map((d, i) => (
-              <span key={d} className="inline-flex items-center gap-0.5 bg-muted text-foreground text-[9px] font-semibold px-2 py-0.5 rounded-full">
-                {d}
-                {days.length > 1 && (
-                  <button onClick={() => removeDay(i)} className="ml-0.5 hover:text-destructive">
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                )}
-              </span>
-            ))}
-            {days.length < ALL_DAYS.length && (
-              <button
-                onClick={addDay}
-                className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary hover:text-primary/80 bg-primary/10 px-2 py-0.5 rounded-full"
+          <div className="rounded-[1.5rem] border border-border bg-card p-4 shadow-sm">
+            <div className="mb-2.5 flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-primary" />
+              <span className="text-sm font-display font-bold text-foreground">Select Education Level</span>
+            </div>
+            <div className="relative">
+              <div
+                ref={levelScrollRef}
+                className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
-                <Plus className="w-2.5 h-2.5" /> Add Day
-              </button>
-            )}
+                {LEVELS.map(({ key }) => {
+                  const info = EDUCATION_LEVELS[key];
+                  const isActive = activeLevel === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => switchLevel(key)}
+                      className={`relative min-w-[190px] overflow-hidden rounded-lg border text-left transition-all duration-200 ${
+                        isActive
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-border hover:border-primary/40 hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className={`absolute inset-y-0 left-0 w-2 ${LEVEL_ACCENTS[key]}`} />
+                      <div className="px-5 py-4">
+                        <div className={`text-sm font-semibold leading-tight ${isActive ? 'text-primary' : 'text-foreground'}`}>
+                          {info.label}
+                        </div>
+                      </div>
+                      {isActive && (
+                        <div className="absolute right-3 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-primary" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {showLevelScrollCue && (
+                <button
+                  type="button"
+                  onClick={() => levelScrollRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
+                  className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center justify-center p-2 text-primary sm:inline-flex"
+                  aria-label="Scroll to see more education levels"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {streams.length > 0 && (
-            <Card className="mb-4 border-border/70 bg-card/70 p-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-sm font-bold">Stream Toggles</h3>
-                  <p className="text-xs text-muted-foreground">
+            <Card className="mb-4 border-border/70 bg-card/70 p-4">
+              <div className="space-y-4">
+                <div className="text-center">
+                  <h3 className="text-lg font-bold text-foreground">Stream Toggles</h3>
+                  <p className="text-sm text-muted-foreground">
                     Each stream keeps its own timetable. Toggle between them to review or edit individually.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2" role="tablist" aria-label="Stream toggles">
+                <div className="flex flex-wrap justify-center gap-2" role="tablist" aria-label="Stream toggles">
                   {streams.map((stream) => {
                     const isActive = stream.id === activeStreamId;
                     return (
@@ -701,7 +860,7 @@ const Timetables = () => {
                         type="button"
                         onClick={() => setActiveStreamId(stream.id)}
                         aria-pressed={isActive}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-semibold transition-all ${
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-all ${
                           isActive
                             ? 'border-primary bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20'
                             : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
@@ -721,75 +880,19 @@ const Timetables = () => {
             </Card>
           )}
 
-          {/* A4 Landscape Timetable */}
-          <div
-            id="timetable-print"
-            className="bg-card rounded-xl shadow-lg border border-border overflow-hidden"
-            style={{ maxWidth: '1400px', margin: '0 auto', fontFamily }}
-          >
-            <SchoolHeader
-              schoolName={schoolName}
-              className={viewMode === 'teacher' ? `TEACHER: ${selectedTeacher || 'Unassigned'}` : className}
-              term={term}
-              year={year}
-              onSchoolNameChange={setSchoolName}
-              onClassNameChange={setClassName}
-              onTermChange={setTerm}
-              onYearChange={setYear}
+          {timetableContent()}
+
+          <PaymentDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog} />
+
+          <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-4 md:grid-cols-2">
+            <DesignSelector
               theme={theme}
+              onThemeChange={setTheme}
+              days={days}
+              canAddDay={days.length < ALL_DAYS.length}
+              onAddDay={addDay}
+              onRemoveDay={removeDay}
             />
-            <div className="p-1.5">
-              {viewMode === 'teacher' && masterData && (
-                <div className="mb-4 flex items-center gap-2 p-2 bg-muted/30 rounded-lg border border-border">
-                  <span className="text-[10px] font-bold text-muted-foreground">Select Teacher:</span>
-                  <select 
-                    className="bg-background border border-border rounded px-2 py-1 text-[10px] font-semibold outline-none focus:ring-1 focus:ring-primary"
-                    value={selectedTeacher || ''}
-                    onChange={(e) => setSelectedTeacher(e.target.value)}
-                  >
-                    <option value="" disabled>Choose a teacher...</option>
-                    {[...new Set(masterData.classes.flatMap(c => c.grid.flatMap(r => r.map(cell => cell.teacher))))]
-                      .filter(t => t.trim() !== '')
-                      .sort()
-                      .map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))
-                    }
-                  </select>
-                </div>
-              )}
-              <TimetableGridComponent
-                grid={viewMode === 'teacher' && masterData && selectedTeacher 
-                  ? aggregateTeacherTimetable(masterData, selectedTeacher).grid 
-                  : grid}
-                days={days}
-                periods={periods}
-                onCellChange={handleCellChange}
-                onPeriodChange={handlePeriodChange}
-                theme={theme}
-                customSubjects={customSubjects}
-                colorless={colorless}
-                rowColors={rowColors}
-                colColors={colColors}
-                onRowColorChange={(idx, c) => setRowColors(prev => ({ ...prev, [idx]: c }))}
-                onColColorChange={(idx, c) => setColColors(prev => ({ ...prev, [idx]: c }))}
-                viewMode={viewMode}
-                isGenerating={isGenerating}
-              />
-            </div>
-          </div>
-
-          <PaymentDialog 
-            open={showPaymentDialog} 
-            onOpenChange={setShowPaymentDialog}
-            schoolId={schoolId || undefined}
-            schoolName={schoolName}
-            email={userEmail || undefined}
-          />
-
-          {/* Design & Subject Management */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-[1120px] mx-auto">
-            <DesignSelector theme={theme} onThemeChange={setTheme} />
             <SubjectManager
               customSubjects={customSubjects}
               onAddSubject={handleAddSubject}
@@ -798,11 +901,66 @@ const Timetables = () => {
             />
           </div>
 
-          <p className="text-center text-[9px] text-muted-foreground mt-3">
+          <p className="mt-3 text-center text-xs text-muted-foreground">
             Designed for Kenyan CBC & 8-4-4 curriculum schools • KICD aligned
           </p>
         </div>
       </div>
+
+      <Dialog open={guideOpen} onOpenChange={setGuideOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Quick timetable guide</DialogTitle>
+            <DialogDescription>
+              A quick checklist to keep the build flow simple.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <div>
+              <p className="font-medium text-foreground">Pick a level</p>
+              <p>Choose CBC or 8-4-4 so the right period template loads.</p>
+            </div>
+            <div>
+              <p className="font-medium text-foreground">Edit times</p>
+              <p>Click a time header to edit the start and end timestamps.</p>
+            </div>
+            <div>
+              <p className="font-medium text-foreground">Fill lessons</p>
+              <p>Click any cell to set the subject and teacher for that period.</p>
+            </div>
+            <div>
+              <p className="font-medium text-foreground">Switch views</p>
+              <p>Use teacher view to inspect one teacher&apos;s weekly load.</p>
+            </div>
+            <div>
+              <p className="font-medium text-foreground">Export when ready</p>
+              <p>PDF and Excel export unlock after subscription is verified.</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="h-screen w-screen max-w-none rounded-none border-0 p-0 sm:max-w-none">
+          <div className="flex h-full flex-col bg-background">
+            <div className="flex items-center justify-between border-b border-border bg-white px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Timetable Preview</p>
+                <p className="text-xs text-muted-foreground">Full-screen view for easier inspection.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setPreviewOpen(false)} className="rounded-full px-4">
+                <Minimize2 className="mr-2 h-4 w-4" />
+                Minimize
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 md:p-6">
+              <div className="mx-auto max-w-[1500px]">
+                {timetableContent(true)}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

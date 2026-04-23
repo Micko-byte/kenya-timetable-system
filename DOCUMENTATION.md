@@ -71,13 +71,7 @@ alter table public.timetables
   add column if not exists academic_year text;
 ```
 
-## Payment Tables
-
-Use this migration for Paystack checkout history, subscription receipts, and queued emails:
-
-[`supabase/migrations/20260417_02_paystack_payments.sql`](./supabase/migrations/20260417_02_paystack_payments.sql)
-
-If the table already exists and you want to backfill records where the school template matches the template row, you can optionally run:
+If you want to backfill records where the school template matches the template row, you can optionally run:
 
 ```sql
 update public.timetables t
@@ -121,27 +115,14 @@ The timetable screen supports:
 
 Generated filenames are sanitized so they work on Windows, macOS, and browser downloads.
 
-## Billing and Paystack
+## Billing
 
-The billing page now uses an in-app Paystack popup checkout plus a verification step.
+The billing page now presents the active subscription, plan options, and recent payment history.
 
-Flow:
-
-1. The browser calls the `paystack-init` Supabase Edge Function.
-2. The function inserts a pending row into `payment_transactions` and returns a reference.
-3. The browser opens Paystack inline with the public key and keeps the user on the billing page.
-4. The user can choose card or mobile money in the popup.
-5. The browser calls the `paystack-verify` function after a successful payment.
-6. The verify function confirms the transaction, updates `payment_transactions`, updates `subscriptions`, inserts a payment activity log, and queues a receipt notification.
-
-Required Edge Function secrets:
-
-- `PAYSTACK_SECRET_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_URL`
-- `PAYSTACK_SECRET_KEY` should stay only in Supabase Edge Functions.
-
-The billing UI reads payment history from `activity_logs` rows with `activity_type = 'payment'`.
+- Export access is controlled by the subscription record.
+- PDF and Excel downloads unlock when the subscription status is active.
+- The timetable editor opens a billing prompt whenever a locked export is requested.
+- The billing UI reads payment history from `activity_logs` rows with `activity_type = 'payment'`.
 
 ## Python Generator
 

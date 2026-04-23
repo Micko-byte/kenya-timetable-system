@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Header } from "@/components/Header";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -43,6 +44,8 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
   const [showSignUpConfirmPassword, setShowSignUpConfirmPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [hasAcceptedPolicies, setHasAcceptedPolicies] = useState(false);
+  const [showPoliciesDialog, setShowPoliciesDialog] = useState(false);
 
   const isInvalidRefreshTokenError = (error: unknown) => {
     const message = String((error as any)?.message || "");
@@ -149,10 +152,10 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
     try {
       if (isLogin) {
+        setLoading(true);
         await signInWithPasswordRecovering(formData.email, formData.password);
         
         // Check user role from database
@@ -178,6 +181,12 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
         if (formData.password !== formData.confirmPassword) {
           throw new Error("Passwords do not match.");
         }
+
+        if (!hasAcceptedPolicies) {
+          throw new Error("Please accept the Terms and Conditions and Privacy Policy before enrolling.");
+        }
+
+        setLoading(true);
 
         const { error: createError } = await supabase.functions.invoke("auth-signup", {
           body: {
@@ -400,6 +409,34 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
             </>
           )}
 
+          {!isLogin && (
+            <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="accept-policies"
+                  checked={hasAcceptedPolicies}
+                  onCheckedChange={(checked) => setHasAcceptedPolicies(checked === true)}
+                  className="mt-0.5 h-5 w-5 rounded-full data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                />
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="accept-policies"
+                    className="text-sm font-medium leading-6 text-gray-900 dark:text-white"
+                  >
+                    I have read and agree to the Terms and Conditions and Privacy Policy.
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPoliciesDialog(true)}
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    Read Terms and Privacy Policy
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <Button
             type="submit"
             className="font-semibold w-full gradient-primary text-white hover:opacity-90 transition-all rounded-full"
@@ -441,6 +478,7 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
                 password: "",
                 confirmPassword: "",
               }));
+              setHasAcceptedPolicies(false);
             }}
             className="text-sm text-primary hover:underline transition-all"
           >
@@ -593,6 +631,163 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
                 </Button>
               </>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPoliciesDialog} onOpenChange={setShowPoliciesDialog}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden bg-white dark:bg-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white">
+              Terms and Conditions & Privacy Policy
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
+              Please review these policies before enrolling your school on ElimuTime.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[65vh] space-y-6 overflow-y-auto pr-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
+            <section className="space-y-3">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Terms and Conditions</h3>
+              <p><strong>Effective Date:</strong> 24/04/2026</p>
+              <p><strong>Company:</strong> NotifyAI</p>
+
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">1. Acceptance of Terms</p>
+                <p>By accessing or using Elimutime (&ldquo;the Platform&rdquo;), you agree to be bound by these Terms and Conditions. If you do not agree, do not use the Platform.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">2. Description of Service</p>
+                <p>Elimutime provides AI-powered timetable generation tools for educational institutions. While we aim for accuracy and optimization, we do not guarantee that generated timetables are error-free or suitable for all institutional needs.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">3. Eligibility</p>
+                <p>You must be at least 18 years old or using the Platform under the supervision of a school or legal guardian.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">4. User Responsibilities</p>
+                <p>You agree to:</p>
+                <p>Provide accurate and complete data (teachers, subjects, availability)</p>
+                <p>Review all generated timetables before implementation</p>
+                <p>Use the Platform in compliance with applicable laws</p>
+                <p className="mt-2">You agree NOT to:</p>
+                <p>Misuse the system or attempt unauthorized access</p>
+                <p>Reverse-engineer or exploit the AI models</p>
+                <p>Upload harmful or unlawful content</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">5. AI Disclaimer</p>
+                <p>The Platform uses artificial intelligence to generate schedules.</p>
+                <p>We do not guarantee:</p>
+                <p>Conflict-free outputs in all cases</p>
+                <p>Compliance with all institutional policies</p>
+                <p>Suitability for high-stakes decision-making without human review</p>
+                <p className="mt-2">You are responsible for validating all outputs.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">6. Subscription & Payments</p>
+                <p>Certain features (e.g., exports, large timetable generation) require a paid subscription</p>
+                <p>Payments are non-refundable unless stated otherwise</p>
+                <p>We reserve the right to change pricing with notice</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">7. Intellectual Property</p>
+                <p>All Platform content, design, and technology remain the property of Elimu Digital. You retain ownership of your uploaded data.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">8. Data Usage</p>
+                <p>By using Elimutime, you grant us the right to process your data to deliver services and improve system performance and AI models in anonymized form.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">9. Limitation of Liability</p>
+                <p>To the fullest extent permitted by law:</p>
+                <p>We are not liable for timetable conflicts, losses, or disruptions</p>
+                <p>We are not responsible for decisions made based on Platform output</p>
+                <p>Our total liability shall not exceed the amount paid by you in the last 3 months</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">10. Indemnification</p>
+                <p>You agree to indemnify and hold harmless Elimu Digital from any claims arising from your use of Elimutime, your data inputs, or your violation of these Terms.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">11. Termination</p>
+                <p>We may suspend or terminate access if you violate these Terms, misuse the Platform, or where required by law.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">12. Changes to Terms</p>
+                <p>We may update these Terms at any time. Continued use means acceptance.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">13. Governing Law</p>
+                <p>These Terms are governed by the laws of Kenya.</p>
+              </div>
+            </section>
+
+            <section className="space-y-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Privacy Policy</h3>
+              <p><strong>Effective Date:</strong> 24/04/2026</p>
+
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">1. Introduction</p>
+                <p>Elimutime respects your privacy and is committed to protecting your personal data in compliance with the Kenyan Data Protection Act, 2019.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">2. Data We Collect</p>
+                <p className="font-medium text-gray-900 dark:text-white">a) Information You Provide</p>
+                <p>School details (name, structure)</p>
+                <p>Teacher names and schedules</p>
+                <p>User account details (email, login info)</p>
+                <p className="mt-2 font-medium text-gray-900 dark:text-white">b) Automatically Collected Data</p>
+                <p>Device and browser information</p>
+                <p>Usage analytics</p>
+                <p>IP address</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">3. How We Use Your Data</p>
+                <p>We use your data to generate timetables, provide and improve services, manage subscriptions, and ensure security and prevent fraud.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">4. Legal Basis for Processing</p>
+                <p>We process your data based on consent, contractual necessity, and legal obligations.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">5. Data Sharing</p>
+                <p>We do NOT sell your data.</p>
+                <p>We may share data with service providers such as Supabase for backend services, payment processors, and legal authorities when required.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">6. Data Retention</p>
+                <p>We retain your data only as long as necessary to provide services and meet legal obligations. You may request deletion at any time.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">7. Data Security</p>
+                <p>We implement encryption, secure authentication, and access controls. However, no system is 100% secure.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">8. Your Rights</p>
+                <p>Under Kenyan law, you have the right to access your data, correct inaccuracies, request deletion, and object to processing.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">9. Cookies & Tracking</p>
+                <p>We use cookies to improve user experience and analyze usage patterns. You can disable cookies in your browser.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">10. Third-Party Services</p>
+                <p>We may use third-party tools such as Supabase and analytics providers. We are not responsible for their independent privacy practices.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">11. Children&rsquo;s Privacy</p>
+                <p>We do not knowingly collect data from children under 13 without proper authorization.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">12. Changes to Privacy Policy</p>
+                <p>We may update this policy. Continued use indicates acceptance.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">13. Contact</p>
+                <p>For privacy-related requests: notifytechgroup@gmail.com</p>
+              </div>
+            </section>
           </div>
         </DialogContent>
       </Dialog>

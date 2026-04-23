@@ -174,6 +174,20 @@ export default function AdminTemplateEditor() {
     });
   }, []);
 
+  const addDay = () => {
+    const available = ALL_DAYS.filter((day) => !days.includes(day));
+    if (available.length === 0) return;
+    const newDay = available[0];
+    setDays((prev) => [...prev, newDay]);
+    setGrid((prev) => [...prev, periods.map(() => ({ subject: '', teacher: '' }))]);
+  };
+
+  const removeDay = (index: number) => {
+    if (days.length <= 1) return;
+    setDays((prev) => prev.filter((_, idx) => idx !== index));
+    setGrid((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
   const switchLevel = (level: ActiveLevel) => {
     if (!confirm('Switching levels will reset the current grid. Continue?')) return;
     setActiveLevel(level);
@@ -256,7 +270,14 @@ export default function AdminTemplateEditor() {
               </div>
             </Card>
 
-            <DesignSelector theme={theme} onThemeChange={setTheme} />
+            <DesignSelector
+              theme={theme}
+              onThemeChange={setTheme}
+              days={days}
+              canAddDay={days.length < ALL_DAYS.length}
+              onAddDay={addDay}
+              onRemoveDay={removeDay}
+            />
             
             <Card className="p-4 space-y-4">
                <h3 className="font-bold text-sm flex items-center gap-2"><Type className="w-4 h-4" /> Typography</h3>

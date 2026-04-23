@@ -95,30 +95,22 @@ const Streams = () => {
         return;
       }
 
-      // Create all combinations of grades and streams
       const streamsToCreate = [];
       for (let grade = firstGrade; grade <= lastGrade; grade++) {
         for (const streamName of streamNamesArray) {
           streamsToCreate.push({
             school_id: schoolId,
-            grade: grade,
+            grade,
             stream_name: streamName,
           });
         }
       }
 
       const { error } = await supabase.from("streams").insert(streamsToCreate);
-
       if (error) throw error;
 
-      toast.success(
-        `Successfully created ${streamsToCreate.length} streams!`
-      );
-      setFormData({
-        firstGrade: "",
-        lastGrade: "",
-        streamNames: "",
-      });
+      toast.success(`Successfully created ${streamsToCreate.length} streams!`);
+      setFormData({ firstGrade: "", lastGrade: "", streamNames: "" });
       setShowForm(false);
       fetchStreams();
     } catch (error: any) {
@@ -130,13 +122,8 @@ const Streams = () => {
 
   const handleDelete = async (streamId: string) => {
     try {
-      const { error } = await supabase
-        .from("streams")
-        .delete()
-        .eq("id", streamId);
-
+      const { error } = await supabase.from("streams").delete().eq("id", streamId);
       if (error) throw error;
-
       toast.success("Stream deleted");
       fetchStreams();
     } catch (error: any) {
@@ -146,13 +133,8 @@ const Streams = () => {
 
   const handleDeleteAll = async () => {
     try {
-      const { error } = await supabase
-        .from("streams")
-        .delete()
-        .eq("school_id", schoolId);
-
+      const { error } = await supabase.from("streams").delete().eq("school_id", schoolId);
       if (error) throw error;
-
       toast.success("All streams deleted");
       setDeleteAllOpen(false);
       setStreamToDelete(null);
@@ -163,9 +145,7 @@ const Streams = () => {
   };
 
   const groupedStreams = streams.reduce((acc, stream) => {
-    if (!acc[stream.grade]) {
-      acc[stream.grade] = [];
-    }
+    if (!acc[stream.grade]) acc[stream.grade] = [];
     acc[stream.grade].push(stream);
     return acc;
   }, {} as Record<number, Stream[]>);
@@ -173,66 +153,58 @@ const Streams = () => {
 
   return (
     <DashboardLayout>
-      <motion.div
-  initial={{ opacity: 0 }}
-  animate={{ opacity: 1 }}
-  className="space-y-6 min-h-[80vh] text-foreground"
->
-  <motion.div
-    initial={{ y: -20, opacity: 0 }}
-    animate={{ y: 0, opacity: 1 }}
-    className="flex w-full flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
-  >
-    {/* Back Button (Left) */}
-    <div className="flex justify-start">
-      <Button
-        variant="outline"
-        onClick={() => navigate("/dashboard")}
-        className="gap-2 font-semibold rounded-full"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back
-      </Button>
-    </div>
-
-    {/* Centered Title + Subtitle */}
-    <div className="order-first px-1 text-center lg:order-none">
-      <h1 className="flex items-center justify-center gap-3 text-2xl font-bold text-black sm:text-3xl">
-        <BookOpen className="w-8 h-8" />
-        Streams & Classes
-      </h1>
-      <p className="text-muted-foreground mt-2">
-        Configure grades and stream organization
-      </p>
-    </div>
-
-    {/* Right Action Buttons */}
-    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
-      {hasStreams && (
-        <Button
-          variant="outline"
-          onClick={() => setDeleteAllOpen(true)}
-          className="w-full gap-2 rounded-full border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[80vh] space-y-6 text-foreground">
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="flex w-full flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
         >
-          <Trash2 className="w-4 h-4" />
-          Delete All
-        </Button>
-      )}
-      <Button
-        onClick={() => setShowForm(true)}
-        className="w-full gap-2 rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
-      >
-        + Add Streams
-      </Button>
-      <Button
-        onClick={() => navigate("/teachers")}
-        className="w-full gap-2 rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
-      >
-        Next →
-      </Button>
-    </div>
-  </motion.div>
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="outline" onClick={() => navigate("/dashboard")} className="gap-2 rounded-full font-semibold">
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+            <Button
+              onClick={() => navigate("/teachers")}
+              className="rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] lg:hidden"
+            >
+              Next →
+            </Button>
+          </div>
 
+          <div className="order-first px-1 text-center lg:order-none">
+            <h1 className="flex items-center justify-center gap-3 text-2xl font-bold text-black sm:text-3xl">
+              <BookOpen className="h-8 w-8" />
+              Streams & Classes
+            </h1>
+            <p className="mt-2 text-muted-foreground">Configure grades and stream organization</p>
+          </div>
+
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
+            {hasStreams && (
+              <Button
+                variant="outline"
+                onClick={() => setDeleteAllOpen(true)}
+                className="w-full gap-2 rounded-full border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete All
+              </Button>
+            )}
+            <Button
+              onClick={() => setShowForm(true)}
+              className="w-full gap-2 rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
+            >
+              + Add Streams
+            </Button>
+            <Button
+              onClick={() => navigate("/teachers")}
+              className="hidden w-full gap-2 rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] sm:w-auto lg:inline-flex"
+            >
+              Next →
+            </Button>
+          </div>
+        </motion.div>
 
         <AnimatePresence>
           {showForm && (
@@ -242,99 +214,85 @@ const Streams = () => {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <Card className="p-6 bg-white border-primary/10 shadow-[0_18px_40px_rgba(1,16,39,0.06)]">
-            <h2 className="text-xl font-semibold text-foreground mb-4">Create Streams</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstGrade">First Grade *</Label>
-                  <Input
-                    id="firstGrade"
-                    type="number"
-                    min="1"
-                    max="12"
-                    placeholder="e.g., 1"
-                    value={formData.firstGrade}
-                    onChange={(e) =>
-                      setFormData({ ...formData, firstGrade: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastGrade">Last Grade *</Label>
-                  <Input
-                    id="lastGrade"
-                    type="number"
-                    min="1"
-                    max="12"
-                    placeholder="e.g., 9"
-                    value={formData.lastGrade}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lastGrade: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-              </div>
+              <Card className="border-primary/10 bg-white p-6 shadow-[0_18px_40px_rgba(1,16,39,0.06)]">
+                <h2 className="mb-4 text-xl font-semibold text-foreground">Create Streams</h2>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstGrade">First Grade *</Label>
+                      <Input
+                        id="firstGrade"
+                        type="number"
+                        min="1"
+                        max="12"
+                        placeholder="e.g., 1"
+                        value={formData.firstGrade}
+                        onChange={(e) => setFormData({ ...formData, firstGrade: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastGrade">Last Grade *</Label>
+                      <Input
+                        id="lastGrade"
+                        type="number"
+                        min="1"
+                        max="12"
+                        placeholder="e.g., 9"
+                        value={formData.lastGrade}
+                        onChange={(e) => setFormData({ ...formData, lastGrade: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="streamNames">Stream Names *</Label>
-                <Input
-                  id="streamNames"
-                  placeholder="e.g., Blue, Pink (comma-separated)"
-                  value={formData.streamNames}
-                  onChange={(e) =>
-                    setFormData({ ...formData, streamNames: e.target.value })
-                  }
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Enter stream names separated by commas. Each stream will be
-                  created for every grade in the range.
-                </p>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="streamNames">Stream Names *</Label>
+                    <Input
+                      id="streamNames"
+                      placeholder="e.g., Blue, Pink (comma-separated)"
+                      value={formData.streamNames}
+                      onChange={(e) => setFormData({ ...formData, streamNames: e.target.value })}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter stream names separated by commas. Each stream will be created for every grade in the range.
+                    </p>
+                  </div>
 
-              <div className="bg-secondary p-4 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Preview:
-                </p>
-                <p className="font-semibold text-foreground">
-                  {formData.firstGrade && formData.lastGrade && formData.streamNames
-                    ? `Will create ${
-                        (parseInt(formData.lastGrade) - parseInt(formData.firstGrade) + 1) *
-                        formData.streamNames.split(",").filter((s) => s.trim()).length
-                      } streams (Grades ${formData.firstGrade}-${formData.lastGrade} with streams: ${formData.streamNames})`
-                    : "Enter details to see preview"}
-                </p>
-              </div>
+                  <div className="rounded-lg bg-secondary p-4">
+                    <p className="mb-2 text-sm text-muted-foreground">Preview:</p>
+                    <p className="font-semibold text-foreground">
+                      {formData.firstGrade && formData.lastGrade && formData.streamNames
+                        ? `Will create ${
+                            (parseInt(formData.lastGrade) - parseInt(formData.firstGrade) + 1) *
+                            formData.streamNames.split(",").filter((s) => s.trim()).length
+                          } streams (Grades ${formData.firstGrade}-${formData.lastGrade} with streams: ${formData.streamNames})`
+                        : "Enter details to see preview"}
+                    </p>
+                  </div>
 
-              <div className="flex flex-col gap-2 pt-4 sm:flex-row">
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0]"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Create Streams"
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForm(false)}
-                  className="rounded-full sm:w-auto"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </Card>
+                  <div className="flex flex-col gap-2 pt-4 sm:flex-row">
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0]"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        "Create Streams"
+                      )}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setShowForm(false)} className="rounded-full sm:w-auto">
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </Card>
             </motion.div>
           )}
         </AnimatePresence>
@@ -349,9 +307,7 @@ const Streams = () => {
                     <Card className="relative overflow-hidden border-primary/10 bg-white p-6 shadow-[0_12px_30px_rgba(1,16,39,0.05)]">
                       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 transition-opacity hover:opacity-100" />
                       <div className="relative z-10">
-                        <h3 className="mb-4 text-xl font-bold text-primary">
-                          Grade {grade}
-                        </h3>
+                        <h3 className="mb-4 text-xl font-bold text-primary">Grade {grade}</h3>
                         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
                           {gradeStreams.map((stream) => (
                             <div
@@ -382,16 +338,11 @@ const Streams = () => {
               <div className="flex min-h-[320px] items-center justify-center">
                 <Card className="w-full max-w-2xl border-primary/10 bg-white p-6 text-center shadow-[0_12px_30px_rgba(1,16,39,0.05)] sm:p-12">
                   <BookOpen className="mx-auto mb-4 h-16 w-16 text-primary" />
-                  <h3 className="mb-2 text-2xl font-semibold text-foreground">
-                    No streams configured yet
-                  </h3>
+                  <h3 className="mb-2 text-2xl font-semibold text-foreground">No streams configured yet</h3>
                   <p className="mb-6 text-muted-foreground">
                     Create your first stream to organize classes and unlock timetable generation.
                   </p>
-                  <Button
-                    onClick={() => setShowForm(true)}
-                    className="rounded-full gradient-primary text-white"
-                  >
+                  <Button onClick={() => setShowForm(true)} className="rounded-full gradient-primary text-white">
                     <Plus className="mr-2 h-4 w-4" />
                     Create Your First Streams
                   </Button>

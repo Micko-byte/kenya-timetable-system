@@ -1,184 +1,105 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, Sparkles, ShieldCheck, Zap, Phone } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PAYSTACK_PLANS, PaystackPlanType, paystackApi } from "@/lib/paystack";
-import { useToast } from "@/hooks/use-toast";
+import { Check, ShieldCheck, Sparkles } from "lucide-react";
+import { BILLING_PLANS } from "@/lib/billingPlans";
 
 interface PaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  schoolId?: string;
-  schoolName?: string;
-  email?: string;
 }
 
-export default function PaymentDialog({ open, onOpenChange, schoolId, schoolName, email }: PaymentDialogProps) {
-  const [loading, setLoading] = useState<string | null>(null);
-  const [phone, setPhone] = useState("");
-  const { toast } = useToast();
-
-  const handleSubscribe = async (planType: PaystackPlanType) => {
-    if (!schoolId || !email) {
-      toast({
-        title: "Error",
-        description: "Missing school or user information. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setLoading(planType);
-      
-      // Initialize payment on backend
-      const initResult = await paystackApi.initializePayment({
-        schoolId,
-        schoolName: schoolName || "My School",
-        email,
-        callbackUrl: `${window.location.origin}${window.location.pathname}`,
-        phone: phone || undefined,
-        planType,
-        paymentChannel: "card", // Base tracking channel
-      });
-
-      if (!initResult.access_code) {
-        throw new Error("Paystack did not return an access code.");
-      }
-
-      await paystackApi.openInlineCheckout(initResult.access_code);
-    } catch (error: any) {
-      console.error("Payment initialization error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to initialize payment.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(null);
-    }
-  };
+export default function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
+  const navigate = useNavigate();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-none bg-background sm:rounded-2xl shadow-2xl">
-        <div className="relative overflow-hidden pt-12 pb-8 px-6 sm:px-10 text-center bg-gradient-to-br from-primary/10 via-background to-background">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-primary/50 to-primary" />
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 rounded-full blur-3xl animate-pulse" />
-          
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-6 border border-primary/20 shadow-inner">
-            <Sparkles className="w-8 h-8 text-primary animate-pulse" />
-          </div>
-          
-          <DialogTitle className="text-3xl sm:text-4xl font-display font-black tracking-tight mb-3">
-            Unlock the Full Power of <span className="text-primary">SchootTime AI</span>
-          </DialogTitle>
-          <DialogDescription className="text-base text-muted-foreground max-w-xl mx-auto">
-            Generate unlimited timetables, export to PDF/Excel, and manage your entire school with teacher-specific views.
-          </DialogDescription>
+      <DialogContent className="max-h-[90vh] max-w-4xl gap-0 overflow-y-auto border-none bg-background p-0 shadow-2xl sm:rounded-2xl">
+        <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-background px-6 pb-8 pt-12 text-center sm:px-10">
+          <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-primary via-primary/50 to-primary" />
+          <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
 
-          <div className="mt-8 max-w-sm mx-auto p-4 bg-primary/5 rounded-xl border border-primary/10">
-            <Label htmlFor="phone" className="text-xs font-bold uppercase tracking-wider text-primary mb-2 block text-left">
-              Phone Number (Optional - for M-Pesa)
-            </Label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="2547XXXXXXXX"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="pl-10 bg-background/50 border-primary/20 focus:border-primary"
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-2 text-left">
-              Include country code (e.g., 254 for Kenya)
-            </p>
+          <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 shadow-inner">
+            <Sparkles className="h-8 w-8 text-primary" />
           </div>
+
+          <DialogTitle className="mb-3 text-3xl font-display font-black tracking-tight sm:text-4xl">
+            Unlock the Full Power of <span className="text-primary">ElimuTime</span>
+          </DialogTitle>
+          <DialogDescription className="mx-auto max-w-xl text-base text-muted-foreground">
+            Exports unlock after your subscription is active. Review plans and manage billing from the billing page.
+          </DialogDescription>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 sm:p-10 bg-muted/30">
-          {(Object.entries(PAYSTACK_PLANS) as [PaystackPlanType, typeof PAYSTACK_PLANS.starter][]).map(([key, plan]) => (
-            <div 
-              key={key} 
-              className={`relative flex flex-col p-6 rounded-2xl border-2 transition-all duration-300 group ${
-                plan.popular 
-                  ? 'border-primary bg-background shadow-xl scale-105 z-10' 
+        <div className="grid grid-cols-1 gap-6 bg-muted/30 p-6 sm:p-10 md:grid-cols-3">
+          {Object.entries(BILLING_PLANS).map(([key, plan]) => (
+            <div
+              key={key}
+              className={`relative flex flex-col rounded-2xl border-2 p-6 transition-all duration-300 ${
+                plan.popular
+                  ? 'z-10 scale-105 border-primary bg-background shadow-xl'
                   : 'border-border bg-background/50 hover:border-primary/30 hover:bg-background hover:shadow-lg'
               }`}
             >
               {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-primary text-[10px] font-black text-primary-foreground uppercase tracking-widest shadow-lg">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary-foreground shadow-lg">
                   Most Popular
                 </div>
               )}
-              
+
               <div className="mb-6">
-                <h3 className="text-xl font-bold mb-1 group-hover:text-primary transition-colors">{plan.name}</h3>
-                <p className="text-xs text-muted-foreground leading-tight h-8">{plan.description}</p>
+                <h3 className="mb-1 text-xl font-bold">{plan.name}</h3>
+                <p className="h-8 text-xs leading-tight text-muted-foreground">{plan.description}</p>
               </div>
-              
+
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
                   <span className="text-sm font-bold text-muted-foreground">KES</span>
                   <span className="text-4xl font-black tracking-tighter">{(plan.amount / 100).toLocaleString()}</span>
                 </div>
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{plan.period}</span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{plan.period}</span>
               </div>
-              
-              <div className="space-y-3 mb-8 flex-grow">
-                {plan.features.map((feature, i) => (
-                  <div key={i} className="flex items-start gap-2 text-sm">
-                    <div className="mt-1 flex-shrink-0 w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Check className="w-2.5 h-2.5 text-primary" />
+
+              <div className="mb-8 flex-grow space-y-3">
+                {plan.features.map((feature) => (
+                  <div key={feature} className="flex items-start gap-2 text-sm">
+                    <div className="mt-1 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Check className="h-2.5 w-2.5 text-primary" />
                     </div>
-                    <span className="text-foreground/80 leading-tight">{feature}</span>
+                    <span className="leading-tight text-foreground/80">{feature}</span>
                   </div>
                 ))}
               </div>
-              
-              <Button 
-                onClick={() => handleSubscribe(key)}
-                disabled={loading !== null}
-                className={`w-full py-6 rounded-xl font-bold text-sm transition-all duration-300 ${
-                  plan.popular 
-                    ? 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20' 
-                    : 'variant-outline border-2 border-primary/20 hover:border-primary hover:bg-primary/5'
+
+              <Button
+                onClick={() => {
+                  onOpenChange(false);
+                  navigate("/billing");
+                }}
+                className={`w-full rounded-xl py-6 text-sm font-bold transition-all duration-300 ${
+                  plan.popular
+                    ? 'bg-primary shadow-lg shadow-primary/20 hover:bg-primary/90'
+                    : 'border-2 border-primary/20 hover:border-primary hover:bg-primary/5'
                 }`}
+                variant={plan.popular ? "default" : "outline"}
               >
-                {loading === key ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    Subscribe Now
-                  </>
-                )}
+                Open Billing
               </Button>
             </div>
           ))}
         </div>
-        
-        <div className="p-6 bg-background border-t border-border">
+
+        <div className="border-t border-border bg-background p-6">
           <div className="flex flex-wrap items-center justify-center gap-8 text-muted-foreground">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-500" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Secure Payment via Paystack</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-500" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Instant Activation</span>
+              <ShieldCheck className="h-4 w-4 text-emerald-500" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Subscription Status Checked Before Export</span>
             </div>
           </div>
         </div>

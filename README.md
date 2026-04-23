@@ -14,13 +14,13 @@
 - **Curriculum Support**: Deep integration with Kenyan CBC and 8-4-4 standards, including pre-populated subject lists and period structures.
 - **Professional Exports**: Download high-quality, printable PDF and Excel files.
 - **Dynamic Design**: Customizable themes (Classic Kenya, Modern, Minimalist) with font selection and color toggles.
-- **Secure Payments**: Integrated with Paystack for seamless termly subscriptions.
+- **Subscription Management**: Billing plans control export access across the platform.
 
 ## 🛠 Tech Stack
 
 - **Frontend**: React, Vite, Tailwind CSS, Shadcn UI
 - **Backend/Auth**: Supabase (PostgreSQL, Auth, Edge Functions)
-- **Payments**: Paystack API
+- **Billing**: Subscription-based export access
 - **Exports**: jsPDF, SheetJS
 
 ## 📦 Getting Started
@@ -29,7 +29,7 @@
 
 - Node.js (v18+)
 - Supabase Account
-- Paystack Account (for payments)
+- Billing workflow for subscription activation
 
 ### Installation
 
@@ -47,7 +47,6 @@
    ```env
    VITE_SUPABASE_URL=your_supabase_url
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   VITE_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
    ```
 
 4. Run the development server:
