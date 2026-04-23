@@ -36,6 +36,11 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
         return;
       }
 
+      if (user.email === "leemwangi250@gmail.com") {
+        setAdminEmail(user.email);
+        return;
+      }
+
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")

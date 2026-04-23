@@ -164,8 +164,8 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
           .eq('role', 'admin')
           .maybeSingle();
         
-        if (roleData) {
-          navigate("/role-selection");
+        if (formData.email === "leemwangi250@gmail.com") {
+          navigate("/admin");
         } else {
           navigate("/dashboard");
         }
@@ -202,14 +202,6 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
           .eq('role', 'admin')
           .maybeSingle();
 
-        if (roleData) {
-          navigate("/role-selection");
-        } else {
-          navigate("/dashboard");
-        }
-        toast.success("Registration successful! Welcome aboard! 🎉");
-        
-        // Conditional redirect based on email
         if (formData.email === "leemwangi250@gmail.com") {
           navigate("/admin");
         } else {

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Users, Mail, BookOpen, Loader2, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AssignedClassesDropdown } from "@/components/AssignedClassesDropdown";
+import { SubjectClassAssignmentsEditor } from "@/components/SubjectClassAssignmentsEditor";
 import { getCurrentSchoolSession } from "@/lib/session";
 
 interface Teacher {
@@ -21,6 +22,10 @@ interface Teacher {
   subjects: string[];
   classResponsibility?: string;
   assignedClasses?: Array<{ id: string; grade: number; stream_name: string }>;
+  subjectClassAssignments?: Array<{
+    subject: string;
+    classes: Array<{ id: string; grade: number; stream_name: string }>;
+  }>;
 }
 
 const Teachers = () => {
@@ -38,6 +43,7 @@ const Teachers = () => {
     subjects: [] as string[],
     classResponsibility: "",
     assignedClasses: [] as string[],
+    subjectClassAssignments: {} as Record<string, string[]>,
   });
   const [newSubject, setNewSubject] = useState("");
 
@@ -76,7 +82,8 @@ const Teachers = () => {
           *,
           teacher_subjects(subject_id, subjects(name)),
           teacher_responsibilities(stream_id, streams(grade, stream_name)),
-          teacher_assigned_classes(stream_id, streams(id, grade, stream_name))
+          teacher_assigned_classes(stream_id, streams(id, grade, stream_name)),
+          teacher_subject_classes(subject_id, stream_id, subjects(name), streams(id, grade, stream_name))
         `
         )
         .eq("school_id", session.schoolId);
@@ -101,6 +108,25 @@ const Teachers = () => {
               stream_name: tac.streams.stream_name,
             })
           ) || [],
+          subjectClassAssignments: Object.values(
+            (teacher.teacher_subject_classes || []).reduce((acc: any, item: any) => {
+              const subjectName = item.subjects?.name || "Unknown subject";
+              if (!acc[subjectName]) {
+                acc[subjectName] = {
+                  subject: subjectName,
+                  classes: [],
+                };
+              }
+              if (item.streams) {
+                acc[subjectName].classes.push({
+                  id: item.streams.id,
+                  grade: item.streams.grade,
+                  stream_name: item.streams.stream_name,
+                });
+              }
+              return acc;
+            }, {})
+          ),
         }));
         setTeachers(formattedTeachers);
       }
@@ -118,8 +144,8 @@ const Teachers = () => {
           school_id: schoolId,
           name: formData.name,
           email: formData.email,
-          max_lessons_per_week: formData.maxLessons,
-        })
+        max_lessons_per_week: formData.maxLessons,
+      })
         .select()
         .single();
 
@@ -185,6 +211,51 @@ const Teachers = () => {
         if (assignError) throw assignError;
       }
 
+      // Link subjects to specific classes for timetable planning
+      const subjectClassLinks = Object.entries(formData.subjectClassAssignments).flatMap(
+        ([subjectName, streamIds]) =>
+          streamIds.map((streamId) => ({
+            subjectName,
+            streamId,
+          }))
+      );
+
+      if (subjectClassLinks.length > 0) {
+        for (const link of subjectClassLinks) {
+          const subjectId = await (async () => {
+            const { data: existingSubject } = await supabase
+              .from("subjects")
+              .select("id")
+              .eq("school_id", schoolId)
+              .eq("name", link.subjectName)
+              .maybeSingle();
+
+            if (existingSubject?.id) {
+              return existingSubject.id;
+            }
+
+            const { data: createdSubject, error: subjectError } = await supabase
+              .from("subjects")
+              .insert({ school_id: schoolId, name: link.subjectName })
+              .select("id")
+              .single();
+
+            if (subjectError) throw subjectError;
+            return createdSubject.id;
+          })();
+
+          const { error: linkError } = await supabase
+            .from("teacher_subject_classes")
+            .insert({
+              teacher_id: teacher.id,
+              subject_id: subjectId,
+              stream_id: link.streamId,
+            });
+
+          if (linkError) throw linkError;
+        }
+      }
+
       toast.success("Teacher added successfully! 🎉");
       setFormData({
         name: "",
@@ -193,6 +264,7 @@ const Teachers = () => {
         subjects: [],
         classResponsibility: "",
         assignedClasses: [],
+        subjectClassAssignments: {},
       });
       setNewSubject("");
       setShowForm(false);
@@ -225,6 +297,10 @@ const Teachers = () => {
       setFormData((prev) => ({
         ...prev,
         subjects: [...prev.subjects, newSubject.trim()],
+        subjectClassAssignments: {
+          ...prev.subjectClassAssignments,
+          [newSubject.trim()]: prev.subjectClassAssignments[newSubject.trim()] || [],
+        },
       }));
       setNewSubject("");
     }
@@ -234,6 +310,9 @@ const Teachers = () => {
     setFormData((prev) => ({
       ...prev,
       subjects: prev.subjects.filter((s) => s !== subject),
+      subjectClassAssignments: Object.fromEntries(
+        Object.entries(prev.subjectClassAssignments).filter(([key]) => key !== subject)
+      ),
     }));
   };
 
@@ -402,6 +481,24 @@ const Teachers = () => {
                 )}
               </div>
 
+              <div className="space-y-3">
+                <Label>Subject-Class Links</Label>
+                <p className="text-xs text-muted-foreground">
+                  Choose the classes where each subject will be taught. This helps timetable generation avoid clashes.
+                </p>
+                <SubjectClassAssignmentsEditor
+                  subjects={formData.subjects}
+                  classes={streams}
+                  value={formData.subjectClassAssignments}
+                  onChange={(next) =>
+                    setFormData({
+                      ...formData,
+                      subjectClassAssignments: next,
+                    })
+                  }
+                />
+              </div>
+
               <AssignedClassesDropdown
                 classes={streams}
                 selectedClassIds={formData.assignedClasses}
@@ -531,7 +628,10 @@ const Teachers = () => {
                   Max {teacher.max_lessons_per_week} lessons/week
                 </p>
               </div>
-              {(teacher.subjects.length > 0 || teacher.classResponsibility || teacher.assignedClasses?.length || 0 > 0) && (
+              {(teacher.subjects.length > 0 ||
+                teacher.classResponsibility ||
+                (teacher.assignedClasses?.length || 0) > 0 ||
+                (teacher.subjectClassAssignments?.length || 0) > 0) && (
                 <div className="mt-4 pt-4 border-t border-border space-y-3">
                   {teacher.subjects.length > 0 && (
                     <div>
@@ -547,6 +647,27 @@ const Teachers = () => {
                           >
                             {subject}
                           </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {teacher.subjectClassAssignments && teacher.subjectClassAssignments.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-primary mb-2">
+                        Subject-Class Links:
+                      </p>
+                      <div className="space-y-2">
+                        {teacher.subjectClassAssignments.map((assignment) => (
+                          <div key={assignment.subject} className="rounded-lg border border-border/70 p-2">
+                            <div className="text-xs font-semibold mb-1">{assignment.subject}</div>
+                            <div className="flex flex-wrap gap-1">
+                              {assignment.classes.map((cls) => (
+                                <Badge key={cls.id} variant="outline" className="text-[10px]">
+                                  Grade {cls.grade} - {cls.stream_name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>

@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ChevronDown } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Check, ChevronDown } from "lucide-react";
 
 interface ClassOption {
   id: string;
@@ -17,6 +16,8 @@ interface AssignedClassesDropdownProps {
   onSelectionChange: (classIds: string[]) => void;
   disabled?: boolean;
 }
+
+const formatClassLabel = (classItem: ClassOption) => `Grade ${classItem.grade} - ${classItem.stream_name}`;
 
 export const AssignedClassesDropdown = ({
   classes,
@@ -53,15 +54,13 @@ export const AssignedClassesDropdown = ({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="assigned-classes">Classes Taught</Label>
-      <p className="text-xs text-muted-foreground">
-        Select one or more classes this teacher teaches
-      </p>
+      <Label>Classes Taught</Label>
+      <p className="text-xs text-muted-foreground">Select one or more classes this teacher teaches</p>
 
       {classes.length === 0 ? (
         <Card className="p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
           <p className="text-sm text-amber-900 dark:text-amber-100">
-            ⚠️ No classes available yet. Please create classes in the Classes & Streams section first.
+            No classes available yet. Please create classes in the Classes & Streams section first.
           </p>
         </Card>
       ) : (
@@ -71,76 +70,77 @@ export const AssignedClassesDropdown = ({
               type="button"
               onClick={() => setIsOpen(!isOpen)}
               disabled={disabled || classes.length === 0}
-              className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between hover:bg-accent transition-colors"
+              className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className="text-left">
                 {selectedClassIds.length === 0
                   ? "Select classes..."
-                  : selectedClassIds.length === 1
-                    ? `${selectedClasses[0].grade} - ${selectedClasses[0].stream_name}`
+                  : selectedClasses.length === 1
+                    ? formatClassLabel(selectedClasses[0])
                     : `${selectedClassIds.length} classes selected`}
               </span>
-              <ChevronDown
-                className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
-              />
+              <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
             </button>
 
             {isOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 border border-input bg-background rounded-md shadow-lg z-50 p-2 max-h-72 overflow-y-auto">
-                {/* Select All Option */}
-                <div className="p-2 border-b border-border mb-2">
-                  <div className="flex items-center space-x-2 cursor-pointer hover:bg-accent p-2 rounded">
-                    <Checkbox
-                      id="select-all-classes"
-                      checked={selectedClassIds.length === classes.length && classes.length > 0}
-                      onCheckedChange={handleSelectAll}
-                    />
-                    <Label
-                      htmlFor="select-all-classes"
-                      className="cursor-pointer font-semibold text-sm"
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-md border border-input bg-background p-2 shadow-lg">
+                <div className="mb-2 border-b border-border p-2">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                    onClick={handleSelectAll}
+                  >
+                    <span
+                      className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
+                        selectedClassIds.length === classes.length && classes.length > 0
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input bg-background"
+                      }`}
                     >
-                      Select All
-                    </Label>
-                  </div>
+                      {selectedClassIds.length === classes.length && classes.length > 0 && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="text-sm font-semibold">Select All</span>
+                  </button>
                 </div>
 
-                {/* Class Options */}
                 <div className="space-y-1">
-                  {sortedClasses.map((classItem) => (
-                    <div
-                      key={classItem.id}
-                      className="flex items-center space-x-2 p-2 cursor-pointer hover:bg-accent rounded transition-colors"
-                      onClick={() => handleToggleClass(classItem.id)}
-                    >
-                      <Checkbox
-                        id={`class-${classItem.id}`}
-                        checked={selectedClassIds.includes(classItem.id)}
-                        onCheckedChange={() => handleToggleClass(classItem.id)}
-                      />
-                      <Label
-                        htmlFor={`class-${classItem.id}`}
-                        className="cursor-pointer text-sm flex-1"
+                  {sortedClasses.map((classItem) => {
+                    const active = selectedClassIds.includes(classItem.id);
+
+                    return (
+                      <button
+                        key={classItem.id}
+                        type="button"
+                        disabled={disabled}
+                        className="flex w-full items-center gap-2 rounded p-2 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => handleToggleClass(classItem.id)}
                       >
-                        Grade {classItem.grade} - {classItem.stream_name}
-                      </Label>
-                    </div>
-                  ))}
+                        <span
+                          className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
+                            active ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background"
+                          }`}
+                        >
+                          {active && <Check className="h-3 w-3" />}
+                        </span>
+                        <span className="flex-1 text-sm">{formatClassLabel(classItem)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Selected Classes Display */}
           {selectedClassIds.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
               {selectedClasses.map((classItem) => (
                 <Badge
                   key={classItem.id}
                   variant="default"
-                  className="cursor-pointer hover:scale-105 transition-transform gap-1"
+                  className="cursor-pointer gap-1 transition-transform hover:scale-105"
                   onClick={() => handleToggleClass(classItem.id)}
                 >
-                  Grade {classItem.grade} - {classItem.stream_name}
+                  {formatClassLabel(classItem)}
                   <button
                     type="button"
                     onClick={(e) => {

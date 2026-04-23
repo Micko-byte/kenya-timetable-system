@@ -1,14 +1,20 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/cors.ts";
 
-type PaystackPlanType = "free_trial" | "basic" | "premium";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+};
+
+type PaystackPlanType = "starter" | "growth" | "international";
 type PaymentChannel = "card" | "mobile_money";
 
 const PLAN_AMOUNTS: Record<PaystackPlanType, number> = {
-  free_trial: 0,
-  basic: 250000,
-  premium: 500000,
+  starter: 350000,
+  growth: 750000,
+  international: 1800000,
 };
 
 serve(async (req) => {
@@ -53,7 +59,9 @@ serve(async (req) => {
       customer_email: email,
       customer_phone: phone || null,
       metadata: {
+        school_id: schoolId,
         school_name: schoolName,
+        plan_type: planType,
         email,
         phone: phone || null,
         payment_channel: paymentChannel,

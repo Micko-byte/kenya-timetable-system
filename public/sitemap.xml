@@ -1,107 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset
-  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="
-    http://www.sitemaps.org/schemas/sitemap/0.9
-    http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
-
-  <!-- ── Public / Marketing pages ─────────────────────────── -->
-
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://elimutime.space/</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://schoottime.ai/</loc>
+    <lastmod>2026-04-23</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
-
   <url>
-    <loc>https://elimutime.space/about</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-
-  <url>
-    <loc>https://elimutime.space/pricing</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>monthly</changefreq>
+    <loc>https://schoottime.ai/dashboard</loc>
+    <lastmod>2026-04-23</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
-
   <url>
-    <loc>https://elimutime.space/features</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <url>
-    <loc>https://elimutime.space/contact</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.5</priority>
-  </url>
-
-  <url>
-    <loc>https://elimutime.space/privacy</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-
-  <url>
-    <loc>https://elimutime.space/terms</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-
-  <!-- ── Auth pages (indexable but low priority) ───────────── -->
-
-  <url>
-    <loc>https://elimutime.space/login</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.4</priority>
-  </url>
-
-  <url>
-    <loc>https://elimutime.space/signup</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.6</priority>
-  </url>
-
-  <!-- ── App / Feature pages ───────────────────────────────── -->
-  <!--
-    NOTE: Authenticated-only pages (dashboard, timetables, admin)
-    should be blocked in robots.txt — NOT listed here — to avoid
-    Google wasting crawl budget on pages it cannot access.
-    Remove the block below if you have public demo/preview pages.
-  -->
-
-  <!--
-  <url>
-    <loc>https://elimutime.com/dashboard</loc>
-    <lastmod>2026-04-17</lastmod>
+    <loc>https://schoottime.ai/timetables</loc>
+    <lastmod>2026-04-23</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.9</priority>
   </url>
-
-  <url>
-    <loc>https://elimutime.com/timetables</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-
-  <url>
-    <loc>https://elimutime.com/admin</loc>
-    <lastmod>2026-04-17</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.4</priority>
-  </url>
-  -->
-
 </urlset>

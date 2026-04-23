@@ -1,0 +1,40 @@
+project:
+  name: SchootTime AI
+  version: 1.0.0
+  description: AI-Powered School Timetable Generator for Kenyan CBC & 8-4-4 Curriculum.
+  author: Elimu Digital
+  contact: support@schoottime.ai
+
+seo:
+  title: "SchootTime AI | Smart Timetable Generator for Kenyan Schools"
+  meta_description: "The most advanced AI timetable creator for primary and secondary schools in Kenya. Supports CBC and 8-4-4 curriculum with automatic conflict resolution."
+  keywords:
+    - school timetable generator
+    - kenyan school management
+    - CBC timetable creator
+    - 8-4-4 school schedule
+    - AI timetable maker
+    - teacher scheduling software
+  og_image: "https://schoottime.ai/og-image.png"
+  twitter_handle: "@SchootTimeAI"
+
+features:
+  - AI Generation: Conflict-free scheduling
+  - Teacher Views: Individual schedules for every staff member
+  - Multi-Curriculum: CBC, 8-4-4, and International support
+  - Export Options: PDF and Excel downloads
+  - Premium Designs: Professional and printable templates
+
+subscription_plans:
+  starter:
+    price_kes: 3500
+    period: per term
+    best_for: Small private primary schools
+  growth:
+    price_kes: 7500
+    period: per term
+    best_for: Mid-size CBC private schools
+  international:
+    price_kes: 18000
+    period: per term
+    best_for: International schools

@@ -41,36 +41,31 @@ type FunctionResponse<T> = {
   message?: string;
 };
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const SUPABASE_FUNCTIONS_URL =
-  import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1` : "");
+import { supabase } from "@/integrations/supabase/client";
 
 async function callFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
-  if (!SUPABASE_FUNCTIONS_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    throw new Error("Supabase functions are not configured.");
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    throw new Error("You must be logged in to perform this action.");
   }
 
-  const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/${name}`, {
-    method: "POST",
+  const { data, error } = await supabase.functions.invoke(name, {
+    body,
     headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify(body),
   });
 
-  const payload = (await response.json().catch(() => ({}))) as FunctionResponse<T>;
-  if (!response.ok) {
-    throw new Error(payload.error || payload.message || `Failed to call ${name}`);
+  if (error) {
+    console.error(`Error calling function ${name}:`, error);
+    if (String(error.message || "").toLowerCase().includes("401")) {
+      throw new Error("Your session is not authorized to start payments. Please sign in again and retry.");
+    }
+    throw new Error(error.message || `Failed to call ${name}`);
   }
 
-  if (payload.error) {
-    throw new Error(payload.error);
-  }
-
-  return (payload.data ?? (payload as unknown as T)) as T;
+  return (data?.data ?? data) as T;
 }
 
 declare global {

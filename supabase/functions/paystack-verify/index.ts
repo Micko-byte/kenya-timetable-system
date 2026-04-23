@@ -1,19 +1,25 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/cors.ts";
 
-type PaystackPlanType = "free_trial" | "basic" | "premium";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+};
+
+type PaystackPlanType = "starter" | "growth" | "international";
 
 const PLAN_AMOUNTS: Record<PaystackPlanType, number> = {
-  free_trial: 0,
-  basic: 250000,
-  premium: 500000,
+  starter: 350000,
+  growth: 750000,
+  international: 1800000,
 };
 
 const PLAN_EXPIRES_IN_DAYS: Record<PaystackPlanType, number> = {
-  free_trial: 14,
-  basic: 30,
-  premium: 30,
+  starter: 90, // Termly (approx 3 months)
+  growth: 90,
+  international: 90,
 };
 
 serve(async (req) => {

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { TimetableGrid as GridType, CellData, DesignTheme, DESIGN_THEMES, PeriodSlot } from '../lib/timetableData';
 import TimetableCell from './TimetableCell';
+import { Loader2, Sparkles } from 'lucide-react';
 
 interface TimetableGridProps {
   grid: GridType;
@@ -15,11 +16,14 @@ interface TimetableGridProps {
   colColors?: Record<number, string>;
   onRowColorChange?: (idx: number, color: string) => void;
   onColColorChange?: (idx: number, color: string) => void;
+  viewMode?: 'stream' | 'teacher';
+  isGenerating?: boolean;
 }
 
 export default function TimetableGridComponent({
   grid, days, periods, onCellChange, onPeriodChange, theme = 'classic_kenya', customSubjects = [],
-  colorless = false, rowColors = {}, colColors = {}, onRowColorChange, onColColorChange,
+  colorless = false, rowColors = {}, colColors = {}, onRowColorChange, onColColorChange, viewMode = 'stream',
+  isGenerating = false,
 }: TimetableGridProps) {
   const t = DESIGN_THEMES[theme];
   const palette = t.palette;
@@ -43,11 +47,28 @@ export default function TimetableGridComponent({
   };
 
   return (
-    <div className="overflow-x-auto relative">
-      <table className={`w-full border-collapse ${t.borderStyle}`}>
+    <div className="overflow-x-auto relative min-h-[400px]">
+      {isGenerating && (
+        <div className="absolute inset-0 z-[100] bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-xl animate-in fade-in duration-500">
+          <div className="bg-card/90 border border-border p-8 rounded-2xl shadow-2xl flex flex-col items-center text-center max-w-sm mx-4">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+              <div className="relative bg-primary/10 p-4 rounded-2xl border border-primary/20">
+                <Loader2 className="w-10 h-10 text-primary animate-spin" />
+              </div>
+              <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-amber-500 animate-bounce" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">AI is Generating...</h3>
+            <p className="text-sm text-muted-foreground">
+              Wait a moment while our AI engine optimizes your school timetable for conflict-free scheduling.
+            </p>
+          </div>
+        </div>
+      )}
+      <table className={`min-w-[1180px] w-full border-collapse ${t.borderStyle}`}>
         <thead>
           <tr>
-            <th className={`${t.headerBg} ${t.headerText} px-2 py-1 text-[8px] ${t.fontStyle} font-bold border border-border/30 sticky left-0 z-10 min-w-[60px]`}>
+            <th className={`${t.headerBg} ${t.headerText} px-2 py-1.5 text-[10px] ${t.fontStyle} font-bold border border-border/30 sticky left-0 z-10 min-w-[84px]`}>
               DAY / TIME
             </th>
             {periods.map((period, i) => {
@@ -55,29 +76,41 @@ export default function TimetableGridComponent({
               return (
                 <th
                   key={i}
-                  className={`${t.headerBg} ${t.headerText} px-0.5 py-1 text-[7px] ${t.fontStyle} font-bold border border-border/30 ${isBreak ? 'min-w-[44px] max-w-[50px]' : 'min-w-[68px]'} ${onPeriodChange ? 'cursor-pointer hover:opacity-80' : ''}`}
+                  className={`${t.headerBg} ${t.headerText} px-1 py-1.5 text-[9px] ${t.fontStyle} font-bold border border-border/30 ${isBreak ? 'min-w-[76px] max-w-[90px]' : 'min-w-[118px]'} ${onPeriodChange ? 'cursor-pointer hover:opacity-80' : ''}`}
                 >
                   {editingPeriod === i && onPeriodChange ? (
-                    <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        value={period.time}
-                        onChange={(e) => onPeriodChange(i, { ...period, time: e.target.value })}
-                        onKeyDown={(e) => e.key === 'Enter' && setEditingPeriod(null)}
-                        className="w-full bg-white/20 text-center text-[7px] rounded px-0.5 py-0.5 outline-none border border-white/30 text-inherit"
-                        autoFocus
-                      />
-                      <input
-                        value={period.label}
-                        onChange={(e) => onPeriodChange(i, { ...period, label: e.target.value })}
-                        onKeyDown={(e) => e.key === 'Enter' && setEditingPeriod(null)}
-                        onBlur={() => setEditingPeriod(null)}
-                        className="w-full bg-white/20 text-center text-[6px] rounded px-0.5 py-0.5 outline-none border border-white/30 text-inherit"
-                      />
+                    <div className="flex flex-col gap-1 p-2 bg-background/95 rounded-md shadow-sm border border-primary/20" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-col gap-0.5">
+                        <label className="text-[8px] uppercase font-bold text-muted-foreground text-left px-0.5">Time</label>
+                        <input
+                          value={period.time}
+                          onChange={(e) => onPeriodChange(i, { ...period, time: e.target.value })}
+                          onKeyDown={(e) => e.key === 'Enter' && setEditingPeriod(null)}
+                          className="w-full bg-muted text-center text-[10px] font-bold rounded px-2 py-1 outline-none border border-border focus:border-primary text-foreground"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <label className="text-[8px] uppercase font-bold text-muted-foreground text-left px-0.5">Label</label>
+                        <input
+                          value={period.label}
+                          onChange={(e) => onPeriodChange(i, { ...period, label: e.target.value })}
+                          onKeyDown={(e) => e.key === 'Enter' && setEditingPeriod(null)}
+                          onBlur={() => setEditingPeriod(null)}
+                          className="w-full bg-muted text-center text-[10px] rounded px-2 py-1 outline-none border border-border focus:border-primary text-foreground"
+                        />
+                      </div>
                     </div>
                   ) : (
-                    <div onClick={() => onPeriodChange && setEditingPeriod(editingPeriod === i ? null : i)}>
-                      <div className="leading-tight">{period.time}</div>
-                      <div className="font-normal opacity-70 text-[6px] leading-tight">{period.label}</div>
+                    <div 
+                      onClick={() => onPeriodChange && setEditingPeriod(editingPeriod === i ? null : i)}
+                      className="group flex flex-col items-center justify-center min-h-[30px]"
+                    >
+                      <div className="leading-tight flex items-center gap-0.5">
+                        {period.time}
+                      </div>
+                      <div className="font-normal opacity-70 text-[8px] leading-tight uppercase tracking-wider">{period.label}</div>
+                      <div className="h-0 group-hover:h-2 opacity-0 group-hover:opacity-100 transition-all text-[8px] text-primary/60 font-bold">CLICK TO EDIT</div>
                     </div>
                   )}
                   {/* Column paint button */}
@@ -101,7 +134,7 @@ export default function TimetableGridComponent({
         <tbody>
           {days.map((day, dayIdx) => (
             <tr key={day}>
-              <td className={`${t.dayBg} text-foreground px-1.5 py-1 text-[8px] ${t.fontStyle} font-extrabold border border-border/30 sticky left-0 z-10`}>
+              <td className={`${t.dayBg} text-foreground px-2 py-1.5 text-[10px] ${t.fontStyle} font-extrabold border border-border/30 sticky left-0 z-10`}>
                 <div className="flex items-center gap-1">
                   <span>{day.toUpperCase()}</span>
                   {/* Row paint button */}
@@ -135,6 +168,7 @@ export default function TimetableGridComponent({
                     customColor={getCellColor(dayIdx, periodIdx)}
                     onChange={(data) => onCellChange(dayIdx, periodIdx, data)}
                     customSubjects={customSubjects}
+                    viewMode={viewMode}
                   />
                 );
               })}

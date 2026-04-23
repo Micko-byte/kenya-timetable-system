@@ -269,7 +269,24 @@ export type CellData = {
 
 export type TimetableGrid = CellData[][];
 
+export interface ClassData {
+  name: string;
+  level: ActiveLevel;
+  grid: TimetableGrid;
+  days?: string[];
+  periods?: PeriodSlot[];
+}
+
+export interface MasterTimetable {
+  schoolName: string;
+  term: string;
+  year: string;
+  classes: ClassData[];
+}
+
 export type DesignTheme = 'classic_kenya' | 'modern_glass' | 'vibrant_colors' | 'clean_minimal' | 'kenyan_flag' | 'midnight_black' | 'slate_pro' | 'monochrome' | 'ocean_blue' | 'forest_green';
+
+export type ActiveLevel = Exclude<EducationLevel, 'common'>;
 
 export function getSubjectColor(subject: string): SubjectKey {
   const trimmed = subject.trim();
@@ -462,12 +479,26 @@ export const DESIGN_THEMES: Record<DesignTheme, {
   },
 };
 
-export function parseTimetableJSON(json: string): { grid: TimetableGrid; subjects?: string[] } | null {
+export function parseTimetableJSON(json: string): { grid: TimetableGrid; subjects?: string[]; master?: MasterTimetable } | null {
   try {
     const parsed = JSON.parse(json);
+    
+    // Support Master Timetable format
+    if (parsed.classes && Array.isArray(parsed.classes)) {
+      const master = parsed as MasterTimetable;
+      // If we have classes, use the first one as the default grid for the creator
+      if (master.classes.length > 0) {
+        return { 
+          grid: master.classes[0].grid, 
+          subjects: parsed.subjects,
+          master: master 
+        };
+      }
+    }
+
     if (parsed.grid && Array.isArray(parsed.grid)) {
       const grid = parsed.grid as TimetableGrid;
-      if (grid.length === 5 && grid.every(row => Array.isArray(row))) {
+      if (grid.length >= 1 && grid.every(row => Array.isArray(row))) {
         return { grid, subjects: parsed.subjects };
       }
     }
@@ -478,4 +509,41 @@ export function parseTimetableJSON(json: string): { grid: TimetableGrid; subject
   } catch {
     return null;
   }
+}
+
+export function aggregateTeacherTimetable(master: MasterTimetable, teacherName: string): { grid: TimetableGrid; teacher: string } {
+  // Use the periods and days from the first class as a template
+  const templateClass = master.classes[0];
+  const days = templateClass.days || DEFAULT_DAYS;
+  const periods = templateClass.periods || LEVEL_PERIODS[templateClass.level];
+  
+  const teacherGrid: TimetableGrid = days.map(() => 
+    periods.map(() => ({ subject: '', teacher: '' }))
+  );
+
+  master.classes.forEach((cls) => {
+    cls.grid.forEach((row, dayIdx) => {
+      row.forEach((cell, periodIdx) => {
+        if (cell.teacher.trim().toLowerCase() === teacherName.trim().toLowerCase()) {
+          // Found an assignment!
+          if (teacherGrid[dayIdx] && teacherGrid[dayIdx][periodIdx]) {
+            teacherGrid[dayIdx][periodIdx] = {
+              subject: `${cls.name}: ${cell.subject}`,
+              teacher: teacherName
+            };
+          }
+        } else if (cell.subject.toUpperCase() === 'BREAK' || cell.subject.toUpperCase() === 'LUNCH') {
+            // Include breaks in teacher timetable
+            if (teacherGrid[dayIdx] && teacherGrid[dayIdx][periodIdx]) {
+                teacherGrid[dayIdx][periodIdx] = {
+                    subject: cell.subject,
+                    teacher: ''
+                };
+            }
+        }
+      });
+    });
+  });
+
+  return { grid: teacherGrid, teacher: teacherName };
 }

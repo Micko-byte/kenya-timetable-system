@@ -293,6 +293,52 @@ export type Database = {
           },
         ]
       }
+      teacher_subject_classes: {
+        Row: {
+          id: string
+          teacher_id: string
+          subject_id: string
+          stream_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          teacher_id: string
+          subject_id: string
+          stream_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          teacher_id?: string
+          subject_id?: string
+          stream_id?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_subject_classes_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_subject_classes_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_subject_classes_stream_id_fkey"
+            columns: ["stream_id"]
+            isOneToOne: false
+            referencedRelation: "streams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teacher_responsibilities: {
         Row: {
           id: string

@@ -3,6 +3,13 @@ import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -53,6 +60,8 @@ const Billing = () => {
   const [verifyingReference, setVerifyingReference] = useState<string | null>(null);
   const [history, setHistory] = useState<PaymentLog[]>([]);
   const [paymentChannel, setPaymentChannel] = useState<PaymentChannel>("card");
+  const [selectedPlan, setSelectedPlan] = useState<PaystackPlanType | null>(null);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
   useEffect(() => {
     void fetchSubscription();
@@ -129,6 +138,11 @@ const Billing = () => {
     } finally {
       setVerifyingReference(null);
     }
+  };
+
+  const openPaymentDialog = (planType: PaystackPlanType) => {
+    setSelectedPlan(planType);
+    setPaymentDialogOpen(true);
   };
 
   const startCheckout = async (planType: PaystackPlanType) => {
@@ -241,41 +255,6 @@ const Billing = () => {
           </Card>
         )}
 
-        <Card className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            <div>
-              <label className="text-sm font-semibold mb-2 block">Payment Method</label>
-              <div className="grid gap-2">
-                {PAYMENT_CHANNELS.map((channel) => (
-                  <button
-                    key={channel.value}
-                    type="button"
-                    onClick={() => setPaymentChannel(channel.value)}
-                    className={`rounded-xl border p-4 text-left transition-all ${
-                      paymentChannel === channel.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/40"
-                    }`}
-                  >
-                    <div className="font-semibold">{channel.label}</div>
-                    <div className="text-xs text-muted-foreground">{channel.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold mb-2 block">School Email</label>
-              <Input value={schoolEmail} onChange={(e) => setSchoolEmail(e.target.value)} placeholder="you@school.com" />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold mb-2 block">Phone Number</label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2547XXXXXXXX" />
-            </div>
-          </div>
-        </Card>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {planCards.map((plan, index) => {
             const planDetails = PAYSTACK_PLANS[plan.type];
@@ -312,7 +291,7 @@ const Billing = () => {
                 </ul>
 
                 <Button
-                  onClick={() => startCheckout(plan.type)}
+                  onClick={() => openPaymentDialog(plan.type)}
                   disabled={checkingOut === plan.type || loading || isCurrent || !schoolId}
                   className={`w-full ${isCurrent ? "" : "gradient-primary text-white hover:opacity-90"}`}
                 >
@@ -331,6 +310,78 @@ const Billing = () => {
             );
           })}
         </div>
+
+        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Complete your payment</DialogTitle>
+              <DialogDescription>
+                Choose card or mobile money, confirm your school email and phone number, then Paystack will handle the rest.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-semibold mb-2 block">Payment Method</label>
+                <div className="grid gap-2">
+                  {PAYMENT_CHANNELS.map((channel) => (
+                    <button
+                      key={channel.value}
+                      type="button"
+                      onClick={() => setPaymentChannel(channel.value)}
+                      className={`rounded-xl border p-4 text-left transition-all ${
+                        paymentChannel === channel.value
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                    >
+                      <div className="font-semibold">{channel.label}</div>
+                      <div className="text-xs text-muted-foreground">{channel.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold mb-2 block">School Email</label>
+                <Input
+                  value={schoolEmail}
+                  onChange={(e) => setSchoolEmail(e.target.value)}
+                  placeholder="admin@test.com"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold mb-2 block">Phone Number</label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="2547XXXXXXXX" />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => setPaymentDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 gradient-primary text-white"
+                  disabled={!selectedPlan || checkingOut !== null}
+                  onClick={async () => {
+                    if (!selectedPlan) return;
+                    setPaymentDialogOpen(false);
+                    await startCheckout(selectedPlan);
+                  }}
+                >
+                  {checkingOut ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    "Subscribe"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Card className="p-6 gradient-secondary">
           <h3 className="text-xl font-bold text-primary mb-4 flex items-center gap-2">
