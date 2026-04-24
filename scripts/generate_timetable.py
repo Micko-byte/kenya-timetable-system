@@ -58,6 +58,13 @@ class Teacher:
   assigned_stream_ids: list[str]
 
 
+@dataclass
+class TeacherLoad:
+  slots: set[str]
+  total: int
+  by_day: dict[int, int]
+
+
 def _dedupe(values: Iterable[str]) -> list[str]:
   seen: set[str] = set()
   result: list[str] = []
@@ -145,6 +152,12 @@ def _lesson_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
   return []
 
 
+def _teacher_load(calendar: dict[str, TeacherLoad], teacher_id: str) -> TeacherLoad:
+  if teacher_id not in calendar:
+    calendar[teacher_id] = TeacherLoad(slots=set(), total=0, by_day={})
+  return calendar[teacher_id]
+
+
 def _lesson_key_candidates(lesson: dict[str, Any], days: list[str], periods: list[dict[str, Any]]) -> list[str]:
   day_value = lesson.get("day", lesson.get("day_of_week"))
   period_value = lesson.get("time", lesson.get("period_id", lesson.get("period_number", lesson.get("slot"))))
@@ -177,6 +190,95 @@ def _lesson_key_candidates(lesson: dict[str, Any], days: list[str], periods: lis
   return candidates
 
 
+def _score_candidate(
+  teacher: Teacher,
+  priority: int,
+  day_index: int,
+  periods_per_day: int,
+  calendar: dict[str, TeacherLoad],
+) -> dict[str, Any] | None:
+  load = _teacher_load(calendar, teacher.id)
+  max_lessons = periods_per_day * len(DAY_NAMES)
+  daily_cap = max(1, (periods_per_day + 1) // 2)
+  daily_load = load.by_day.get(day_index, 0)
+
+  if load.total >= max_lessons:
+    return None
+
+  return {
+    "teacher": teacher,
+    "priority": priority,
+    "daily_load": daily_load,
+    "total_load": load.total,
+    "over_daily_cap": daily_load >= daily_cap,
+  }
+
+
+def _choose_teacher(
+  subject: str,
+  stream_id: str,
+  day_index: int,
+  period_index: int,
+  periods_per_day: int,
+  teachers: list[Teacher],
+  calendar: dict[str, TeacherLoad],
+) -> Teacher:
+  exact_matches = [
+    teacher for teacher in teachers
+    if subject in teacher.subjects and stream_id in teacher.assigned_stream_ids
+  ]
+  assigned_matches = [
+    teacher for teacher in teachers
+    if stream_id in teacher.assigned_stream_ids and subject in teacher.subjects
+  ]
+  general_matches = [teacher for teacher in teachers if subject in teacher.subjects]
+
+  candidate_ids = _dedupe([teacher.id for teacher in exact_matches + assigned_matches + general_matches])
+  scored_candidates: list[dict[str, Any]] = []
+
+  for teacher_id in candidate_ids:
+    teacher = next((item for item in teachers if item.id == teacher_id), None)
+    if teacher is None:
+      continue
+
+    slot = f"{day_index}:{period_index}"
+    load = _teacher_load(calendar, teacher.id)
+    if slot in load.slots:
+      continue
+
+    priority = 0 if teacher in exact_matches else 1 if teacher in assigned_matches else 2
+    scored = _score_candidate(teacher, priority, day_index, periods_per_day, calendar)
+    if scored is not None:
+      scored_candidates.append(scored)
+
+  scored_candidates.sort(
+    key=lambda item: (
+      item["priority"],
+      item["daily_load"],
+      item["total_load"],
+      item["teacher"].name.lower(),
+    )
+  )
+
+  chosen = next((item for item in scored_candidates if not item["over_daily_cap"]), None)
+  if chosen is None:
+    chosen = scored_candidates[0] if scored_candidates else None
+
+  if chosen is None:
+    return Teacher(
+      id="unassigned",
+      name="Unassigned Teacher",
+      subjects=[],
+      assigned_stream_ids=[],
+    )
+
+  load = _teacher_load(calendar, chosen["teacher"].id)
+  load.slots.add(f"{day_index}:{period_index}")
+  load.total += 1
+  load.by_day[day_index] = load.by_day.get(day_index, 0) + 1
+  return chosen["teacher"]
+
+
 def generate_timetable(payload: dict[str, Any]) -> dict[str, Any]:
   stream = _parse_stream(payload["stream"])
   teachers = _parse_teachers(payload.get("teachers") or [])
@@ -189,6 +291,7 @@ def generate_timetable(payload: dict[str, Any]) -> dict[str, Any]:
   days = _build_days(template, days_per_week)
   periods = _build_periods(template, periods_per_day)
   lessons = _lesson_candidates(payload)
+  teacher_calendar: dict[str, TeacherLoad] = {}
 
   lesson_lookup: dict[str, dict[str, Any]] = {}
   for lesson in lessons:
@@ -202,6 +305,10 @@ def generate_timetable(payload: dict[str, Any]) -> dict[str, Any]:
   for day_index, day_name in enumerate(days, start=1):
     day_row: list[dict[str, Any] | None] = []
     for period_index, period in enumerate(periods, start=1):
+      if str(period.get("label") or "").strip().upper() in {"BREAK", "LUNCH"}:
+        day_row.append(None)
+        continue
+
       period_value = period.get("time") or period.get("label") or period_index
       slot_candidates = [
         _slot_key(day_name, period_value, stream.id, ""),
@@ -243,6 +350,19 @@ def generate_timetable(payload: dict[str, Any]) -> dict[str, Any]:
         "is_locked": bool(matched_lesson.get("is_locked", False)),
         "period_number": _safe_int(matched_lesson.get("period_number"), period_index),
       }
+
+      selected_teacher = _choose_teacher(
+        subject_name,
+        stream.id,
+        day_index,
+        period_index,
+        periods_per_day,
+        teachers,
+        teacher_calendar,
+      )
+      entry["teacher_id"] = selected_teacher.id
+      entry["teacher_name"] = selected_teacher.name
+
       day_row.append(entry)
       timetable_data.append(entry)
     grid.append(day_row)

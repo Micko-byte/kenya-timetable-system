@@ -47,11 +47,17 @@ type StreamRecord = { id: string; grade: number; stream_name: string };
 type TeacherRecord = {
   id: string;
   name: string;
+  maxLessonsPerWeek: number;
   subjects: string[];
   assignedStreamIds: string[];
   subjectClassLinks: Array<{ subject: string; streamId: string }>;
 };
-type TeacherCalendar = Record<string, Set<string>>;
+type TeacherLoad = {
+  slots: Set<string>;
+  total: number;
+  byDay: Record<number, number>;
+};
+type TeacherCalendar = Record<string, TeacherLoad>;
 
 const LEVELS: { key: ActiveLevel; defaultSchool: string; defaultClass: string }[] = [
   { key: 'pre_primary', defaultSchool: 'Brightstone Schools Pre-School', defaultClass: 'PP2' },
@@ -84,13 +90,48 @@ const formatStreamLabel = (stream: StreamRecord) => `Grade ${stream.grade} - ${s
 const normalizeText = (value: string) => value.trim().toLowerCase();
 const slotKey = (dayIdx: number, periodIdx: number) => `${dayIdx}:${periodIdx}`;
 
+function getTeacherLoad(calendar: TeacherCalendar, teacherId: string): TeacherLoad {
+  if (!calendar[teacherId]) {
+    calendar[teacherId] = { slots: new Set<string>(), total: 0, byDay: {} };
+  }
+  return calendar[teacherId];
+}
+
+function scoreTeacherCandidate(
+  teacher: TeacherRecord,
+  priority: number,
+  dayIdx: number,
+  teacherCalendar: TeacherCalendar,
+  periodsPerDay: number,
+) {
+  const load = getTeacherLoad(teacherCalendar, teacher.id);
+  const dailyLoad = load.byDay[dayIdx] || 0;
+  const dailyCap = Math.max(1, Math.ceil(periodsPerDay / 2));
+  const maxLessons = teacher.maxLessonsPerWeek > 0 ? teacher.maxLessonsPerWeek : Number.POSITIVE_INFINITY;
+
+  if (load.total >= maxLessons) {
+    return null;
+  }
+
+  return {
+    teacher,
+    priority,
+    dailyLoad,
+    totalLoad: load.total,
+    overDailyCap: dailyLoad >= dailyCap,
+  };
+}
+
 function pickTeacherForSubject(
   teachers: TeacherRecord[],
   stream: StreamRecord,
   subject: string,
-  slot: string,
+  dayIdx: number,
+  periodIdx: number,
+  periodsPerDay: number,
   teacherCalendar: TeacherCalendar,
 ) {
+  const slot = slotKey(dayIdx, periodIdx);
   const exactMatches = teachers.filter((teacher) =>
     teacher.subjectClassLinks.some(
       (link) => link.streamId === stream.id && normalizeText(link.subject) === normalizeText(subject),
@@ -109,18 +150,46 @@ function pickTeacherForSubject(
     (teacher, index, list) => list.findIndex((item) => item.id === teacher.id) === index,
   );
 
-  for (const teacher of candidateTeachers) {
-    const teacherKey = normalizeText(teacher.name);
-    if (!teacherKey) continue;
+  const scoredCandidates = candidateTeachers
+    .map((teacher) => {
+      const priority =
+        exactMatches.some((item) => item.id === teacher.id) ? 0 :
+        assignedMatches.some((item) => item.id === teacher.id) ? 1 : 2;
 
-    if (!teacherCalendar[teacherKey]) {
-      teacherCalendar[teacherKey] = new Set<string>();
-    }
+      const score = scoreTeacherCandidate(teacher, priority, dayIdx, teacherCalendar, periodsPerDay);
+      if (!score) return null;
+      return score;
+    })
+    .filter((item): item is NonNullable<ReturnType<typeof scoreTeacherCandidate>> => Boolean(item))
+    .filter((item) => {
+      const load = getTeacherLoad(teacherCalendar, item.teacher.id);
+      return !load.slots.has(slot);
+    });
 
-    if (!teacherCalendar[teacherKey].has(slot)) {
-      teacherCalendar[teacherKey].add(slot);
-      return teacher.name;
-    }
+  const preferred = scoredCandidates
+    .filter((item) => !item.overDailyCap)
+    .sort((a, b) =>
+      a.priority - b.priority ||
+      a.dailyLoad - b.dailyLoad ||
+      a.totalLoad - b.totalLoad ||
+      a.teacher.name.localeCompare(b.teacher.name),
+    );
+
+  const fallback = scoredCandidates
+    .sort((a, b) =>
+      a.priority - b.priority ||
+      a.dailyLoad - b.dailyLoad ||
+      a.totalLoad - b.totalLoad ||
+      a.teacher.name.localeCompare(b.teacher.name),
+    );
+
+  const chosen = preferred[0] || fallback[0];
+  if (chosen) {
+    const load = getTeacherLoad(teacherCalendar, chosen.teacher.id);
+    load.slots.add(slot);
+    load.total += 1;
+    load.byDay[dayIdx] = (load.byDay[dayIdx] || 0) + 1;
+    return chosen.teacher.name;
   }
 
   return '';
@@ -175,7 +244,15 @@ function buildStreamGrid(
       const startIndex = (dayIdx * periods.length + periodIdx) % subjectPool.length;
       for (let offset = 0; offset < subjectPool.length; offset += 1) {
         const subject = subjectPool[(startIndex + offset) % subjectPool.length];
-        const teacher = pickTeacherForSubject(teachers, stream, subject, slotKey(dayIdx, periodIdx), teacherCalendar);
+        const teacher = pickTeacherForSubject(
+          teachers,
+          stream,
+          subject,
+          dayIdx,
+          periodIdx,
+          periods.length,
+          teacherCalendar,
+        );
         if (teacher) {
           return { subject, teacher };
         }
@@ -266,6 +343,7 @@ const Timetables = () => {
           .select(`
             id,
             name,
+            max_lessons_per_week,
             teacher_subjects(subjects(name)),
             teacher_assigned_classes(stream_id),
             teacher_subject_classes(stream_id, subjects(name))
@@ -285,6 +363,7 @@ const Timetables = () => {
       const formattedTeachers: TeacherRecord[] = (teachersData || []).map((teacher: any) => ({
         id: teacher.id,
         name: teacher.name,
+        maxLessonsPerWeek: teacher.max_lessons_per_week ?? 0,
         subjects: teacher.teacher_subjects?.map((entry: any) => entry.subjects?.name).filter(Boolean) || [],
         assignedStreamIds: teacher.teacher_assigned_classes?.map((entry: any) => entry.stream_id).filter(Boolean) || [],
         subjectClassLinks:

@@ -111,17 +111,21 @@ export default function TimetableCell({
     );
   }
 
+  const mainLabel = viewMode === "teacher" ? (subject.trim() || "—") : (mnemonic || "—");
+  const subLabel = viewMode === "teacher" ? teacher : (subject && mnemonic !== subject ? subject : "");
+  const footerLabel = viewMode === "teacher" ? "" : (teacher ? `(${teacher})` : "");
+
   return (
     <td
       onClick={() => setEditing(true)}
       className={`${bgClass} ${textColor} px-0.5 py-1 border ${colorless ? "border-border" : "border-border/80"} ${compact ? "min-w-[44px] max-w-[50px]" : "min-w-[74px]"} min-h-[52px] cursor-pointer hover:opacity-80 transition-opacity text-center select-none`}
       style={bgStyle}
     >
-      <div className={`font-black ${compact ? "text-[8px]" : "text-[10px]"} leading-tight tracking-wide`}>{mnemonic || "-"}</div>
-      {!compact && subject && mnemonic !== subject && (
-        <div className="text-[8px] opacity-80 leading-snug mt-0.5 break-words max-w-[70px] mx-auto">{subject}</div>
+      <div className={`font-black ${compact ? "text-[8px]" : "text-[10px]"} leading-tight tracking-wide`}>{mainLabel}</div>
+      {!compact && subLabel && (
+        <div className="text-[8px] opacity-80 leading-snug mt-0.5 break-words max-w-[70px] mx-auto">{subLabel}</div>
       )}
-      {teacher && !compact && <div className="text-[8px] opacity-70 mt-0.5">({teacher})</div>}
+      {footerLabel && !compact && <div className="text-[8px] opacity-70 mt-0.5">{footerLabel}</div>}
     </td>
   );
 }

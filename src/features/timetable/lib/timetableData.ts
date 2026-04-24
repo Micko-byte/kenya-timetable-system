@@ -528,8 +528,8 @@ export function aggregateTeacherTimetable(master: MasterTimetable, teacherName: 
           // Found an assignment!
           if (teacherGrid[dayIdx] && teacherGrid[dayIdx][periodIdx]) {
             teacherGrid[dayIdx][periodIdx] = {
-              subject: `${cls.name}: ${cell.subject}`,
-              teacher: teacherName
+              subject: cell.subject,
+              teacher: cls.name
             };
           }
         }
