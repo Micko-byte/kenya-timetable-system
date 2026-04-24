@@ -99,6 +99,17 @@ export default function TimetableCell({
   }
 
   const textColor = colorless && customColor ? (isColorDark(customColor) ? "text-white" : "text-foreground") : "text-white";
+  const isEmptyCell = !subject.trim() && !teacher.trim();
+
+  if (isEmptyCell) {
+    return (
+      <td
+        onClick={() => setEditing(true)}
+        className={`${bgClass} ${textColor} px-0.5 py-1 border ${colorless ? "border-border" : "border-border/80"} ${compact ? "min-w-[44px] max-w-[50px]" : "min-w-[74px]"} min-h-[52px] cursor-pointer hover:opacity-80 transition-opacity text-center select-none`}
+        style={bgStyle}
+      />
+    );
+  }
 
   return (
     <td

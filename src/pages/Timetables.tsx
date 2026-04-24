@@ -16,11 +16,10 @@ import {
 } from 'lucide-react';
 import SchoolHeader from '@/features/timetable/components/SchoolHeader';
 import TimetableGridComponent from '@/features/timetable/components/TimetableGrid';
-import SubjectManager from '@/features/timetable/components/SubjectManager';
 import DesignSelector from '@/features/timetable/components/DesignSelector';
 import FontSelector, { FONT_OPTIONS } from '@/features/timetable/components/FontSelector';
 import {
-  createGridForLevel, CellData, TimetableGrid, DesignTheme, parseTimetableJSON,
+  createGridForLevel, CellData, TimetableGrid, DesignTheme,
   EducationLevel, EDUCATION_LEVELS, LEVEL_PERIODS, PeriodSlot, getSubjectsByLevel,
   DEFAULT_DAYS, ALL_DAYS, MasterTimetable, aggregateTeacherTimetable,
 } from '@/features/timetable/lib/timetableData';
@@ -600,36 +599,6 @@ const Timetables = () => {
     });
   };
 
-  const handleAddSubject = (name: string) => setCustomSubjects((prev) => [...prev, name]);
-  const handleRemoveSubject = (name: string) => setCustomSubjects((prev) => prev.filter((subject) => subject !== name));
-
-  const handleJsonImport = (json: string) => {
-    const result = parseTimetableJSON(json);
-    if (result) {
-      if (result.master) {
-        setMasterData(result.master);
-        setSchoolName(result.master.schoolName);
-        setTerm(result.master.term);
-        setYear(result.master.year);
-        setGrid(result.master.classes[0].grid);
-        setClassName(result.master.classes[0].name);
-        setActiveLevel(result.master.classes[0].level);
-        toast({
-          title: 'Master Imported',
-          description: `Loaded ${result.master.classes.length} classes for ${result.master.schoolName}.`,
-        });
-      } else {
-        setGrid(result.grid);
-      }
-      if (result.subjects) {
-        setCustomSubjects((prev) => [...new Set([...prev, ...result.subjects!])]);
-      }
-      toast({ title: 'Imported', description: 'Timetable loaded from JSON.' });
-    } else {
-      toast({ title: 'Error', description: 'Invalid JSON format.', variant: 'destructive' });
-    }
-  };
-
   const previewGrid =
     viewMode === 'teacher' && masterData && selectedTeacher
       ? aggregateTeacherTimetable(masterData, selectedTeacher).grid
@@ -892,12 +861,6 @@ const Timetables = () => {
               canAddDay={days.length < ALL_DAYS.length}
               onAddDay={addDay}
               onRemoveDay={removeDay}
-            />
-            <SubjectManager
-              customSubjects={customSubjects}
-              onAddSubject={handleAddSubject}
-              onRemoveSubject={handleRemoveSubject}
-              onJsonImport={handleJsonImport}
             />
           </div>
 

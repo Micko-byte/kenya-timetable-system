@@ -532,14 +532,6 @@ export function aggregateTeacherTimetable(master: MasterTimetable, teacherName: 
               teacher: teacherName
             };
           }
-        } else if (cell.subject.toUpperCase() === 'BREAK' || cell.subject.toUpperCase() === 'LUNCH') {
-            // Include breaks in teacher timetable
-            if (teacherGrid[dayIdx] && teacherGrid[dayIdx][periodIdx]) {
-                teacherGrid[dayIdx][periodIdx] = {
-                    subject: cell.subject,
-                    teacher: ''
-                };
-            }
         }
       });
     });

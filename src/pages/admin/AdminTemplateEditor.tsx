@@ -1,22 +1,16 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { 
-  Download, RotateCcw, FileText, GraduationCap, Plus, X, Palette, 
-  Save, ArrowLeft, Globe, Layout, Type
-} from 'lucide-react';
+import { RotateCcw, GraduationCap, Palette, Save, ArrowLeft, Globe, Layout, Type } from 'lucide-react';
 import SchoolHeader from '@/features/timetable/components/SchoolHeader';
 import TimetableGridComponent from '@/features/timetable/components/TimetableGrid';
-import SubjectManager from '@/features/timetable/components/SubjectManager';
 import DesignSelector from '@/features/timetable/components/DesignSelector';
 import FontSelector, { FONT_OPTIONS } from '@/features/timetable/components/FontSelector';
 import {
-  createGridForLevel, CellData, TimetableGrid, DesignTheme, parseTimetableJSON,
-  EducationLevel, EDUCATION_LEVELS, LEVEL_PERIODS, PeriodSlot, getSubjectsByLevel,
+  createGridForLevel, CellData, TimetableGrid, DesignTheme,
+  EducationLevel, EDUCATION_LEVELS, LEVEL_PERIODS, PeriodSlot,
   DEFAULT_DAYS, ALL_DAYS, DESIGN_THEMES
 } from '@/features/timetable/lib/timetableData';
-import { exportTimetableToXls } from '@/features/timetable/lib/exportToXls';
-import { exportTimetableToPdf } from '@/features/timetable/lib/exportToPdf';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { TimetableTemplate } from '@/features/timetable/types';
@@ -174,6 +168,19 @@ export default function AdminTemplateEditor() {
     });
   }, []);
 
+  const addPeriod = () => {
+    const nextIndex = periods.length + 1;
+    const newSlot: PeriodSlot = { time: `Period ${nextIndex}`, label: `Lesson ${nextIndex}` };
+    setPeriods((prev) => [...prev, newSlot]);
+    setGrid((prev) => prev.map((row) => [...row, { subject: '', teacher: '' }]));
+  };
+
+  const removePeriod = () => {
+    if (periods.length <= 1) return;
+    setPeriods((prev) => prev.slice(0, -1));
+    setGrid((prev) => prev.map((row) => row.slice(0, -1)));
+  };
+
   const addDay = () => {
     const available = ALL_DAYS.filter((day) => !days.includes(day));
     if (available.length === 0) return;
@@ -288,7 +295,13 @@ export default function AdminTemplateEditor() {
           {/* Main Editor Canvas */}
           <div className="lg:col-span-3 space-y-4">
             <div className="flex items-center justify-between mb-2">
-               <div className="flex gap-2">
+               <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="xs" onClick={addPeriod}>
+                    <Plus className="w-3 h-3 mr-1" /> Add Period
+                  </Button>
+                  <Button variant="outline" size="xs" onClick={removePeriod} disabled={periods.length <= 1}>
+                    <X className="w-3 h-3 mr-1" /> Remove Period
+                  </Button>
                   <Button variant="outline" size="xs" onClick={() => setColorless(!colorless)} className={colorless ? 'bg-foreground text-background' : ''}>
                     <Palette className="w-3 h-3 mr-1" /> {colorless ? 'B&W Mode' : 'Color Mode'}
                   </Button>
@@ -337,20 +350,6 @@ export default function AdminTemplateEditor() {
               </div>
             </div>
 
-            <div className="mt-6">
-              <SubjectManager
-                customSubjects={customSubjects}
-                onAddSubject={(name) => setCustomSubjects(prev => [...prev, name])}
-                onRemoveSubject={(name) => setCustomSubjects(prev => prev.filter(s => s !== name))}
-                onJsonImport={(json) => {
-                  const res = parseTimetableJSON(json);
-                  if (res) {
-                    setGrid(res.grid);
-                    toast({ title: 'Imported' });
-                  }
-                }}
-              />
-            </div>
           </div>
         </div>
       </div>

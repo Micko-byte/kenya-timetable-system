@@ -10,7 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Trash2, Users, Mail, BookOpen, Loader2, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { AssignedClassesDropdown } from "@/components/AssignedClassesDropdown";
 import { SubjectClassAssignmentsEditor } from "@/components/SubjectClassAssignmentsEditor";
 import { getCurrentSchoolSession } from "@/lib/session";
 
@@ -20,8 +19,6 @@ interface Teacher {
   email: string;
   max_lessons_per_week: number;
   subjects: string[];
-  classResponsibility?: string;
-  assignedClasses?: Array<{ id: string; grade: number; stream_name: string }>;
   subjectClassAssignments?: Array<{
     subject: string;
     classes: Array<{ id: string; grade: number; stream_name: string }>;
@@ -41,8 +38,6 @@ const Teachers = () => {
     email: "",
     maxLessons: 25,
     subjects: [] as string[],
-    classResponsibility: "",
-    assignedClasses: [] as string[],
     subjectClassAssignments: {} as Record<string, string[]>,
   });
   const [newSubject, setNewSubject] = useState("");
@@ -71,11 +66,9 @@ const Teachers = () => {
       .select(`
           *,
           teacher_subjects(subject_id, subjects(name)),
-          teacher_responsibilities(stream_id, streams(grade, stream_name)),
-          teacher_assigned_classes(stream_id, streams(id, grade, stream_name)),
           teacher_subject_classes(subject_id, stream_id, subjects(name), streams(id, grade, stream_name))
         `)
-      .eq("school_id", session.schoolId);
+        .eq("school_id", session.schoolId);
 
     if (teachersData) {
       const formattedTeachers = teachersData.map((teacher: any) => ({
@@ -84,15 +77,6 @@ const Teachers = () => {
         email: teacher.email,
         max_lessons_per_week: teacher.max_lessons_per_week,
         subjects: teacher.teacher_subjects?.map((ts: any) => ts.subjects?.name) || [],
-        classResponsibility: teacher.teacher_responsibilities?.[0]?.streams
-          ? `Grade ${teacher.teacher_responsibilities[0].streams.grade} - ${teacher.teacher_responsibilities[0].streams.stream_name}`
-          : undefined,
-        assignedClasses:
-          teacher.teacher_assigned_classes?.map((tac: any) => ({
-            id: tac.streams.id,
-            grade: tac.streams.grade,
-            stream_name: tac.streams.stream_name,
-          })) || [],
         subjectClassAssignments: Object.values(
           (teacher.teacher_subject_classes || []).reduce((acc: any, item: any) => {
             const subjectName = item.subjects?.name || "Unknown subject";
@@ -160,23 +144,6 @@ const Teachers = () => {
         }
       }
 
-      if (formData.classResponsibility) {
-        const { error: responsibilityError } = await supabase
-          .from("teacher_responsibilities")
-          .insert({ teacher_id: teacher.id, stream_id: formData.classResponsibility });
-        if (responsibilityError) throw responsibilityError;
-      }
-
-      if (formData.assignedClasses.length > 0) {
-        const assignedClassesData = formData.assignedClasses.map((streamId) => ({
-          teacher_id: teacher.id,
-          stream_id: streamId,
-        }));
-
-        const { error: assignError } = await supabase.from("teacher_assigned_classes").insert(assignedClassesData);
-        if (assignError) throw assignError;
-      }
-
       const subjectClassLinks = Object.entries(formData.subjectClassAssignments).flatMap(([subjectName, streamIds]) =>
         streamIds.map((streamId) => ({ subjectName, streamId })),
       );
@@ -219,8 +186,6 @@ const Teachers = () => {
         email: "",
         maxLessons: 25,
         subjects: [],
-        classResponsibility: "",
-        assignedClasses: [],
         subjectClassAssignments: {},
       });
       setNewSubject("");
@@ -246,11 +211,11 @@ const Teachers = () => {
 
   const addSubject = () => {
     if (newSubject.trim() && !formData.subjects.includes(newSubject.trim())) {
-      setFormData((prev) => ({
-        ...prev,
-        subjects: [...prev.subjects, newSubject.trim()],
-        subjectClassAssignments: {
-          ...prev.subjectClassAssignments,
+    setFormData((prev) => ({
+      ...prev,
+      subjects: [...prev.subjects, newSubject.trim()],
+      subjectClassAssignments: {
+        ...prev.subjectClassAssignments,
           [newSubject.trim()]: prev.subjectClassAssignments[newSubject.trim()] || [],
         },
       }));
@@ -414,36 +379,6 @@ const Teachers = () => {
                     />
                   </div>
 
-                  <AssignedClassesDropdown
-                    classes={streams}
-                    selectedClassIds={formData.assignedClasses}
-                    onSelectionChange={(classIds) => setFormData({ ...formData, assignedClasses: classIds })}
-                  />
-
-                  {streams.length > 0 && (
-                    <div className="space-y-2">
-                      <Label htmlFor="classResponsibility">Class Responsibility (Optional)</Label>
-                      <select
-                        id="classResponsibility"
-                        value={formData.classResponsibility}
-                        onChange={(e) => setFormData({ ...formData, classResponsibility: e.target.value })}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <option value="">Select a class (optional)</option>
-                        {streams
-                          .sort((a, b) => a.grade - b.grade)
-                          .map((stream) => (
-                            <option key={stream.id} value={stream.id}>
-                              Grade {stream.grade} - {stream.stream_name}
-                            </option>
-                          ))}
-                      </select>
-                      <p className="text-xs text-muted-foreground">
-                        Assign this teacher as class teacher for a specific class
-                      </p>
-                    </div>
-                  )}
-
                   <div className="flex flex-col gap-2 pt-4 sm:flex-row">
                     <Button
                       type="submit"
@@ -519,8 +454,6 @@ const Teachers = () => {
                       </p>
                     </div>
                     {(teacher.subjects.length > 0 ||
-                      teacher.classResponsibility ||
-                      (teacher.assignedClasses?.length || 0) > 0 ||
                       (teacher.subjectClassAssignments?.length || 0) > 0) && (
                       <div className="mt-4 space-y-3 border-t border-border pt-4">
                         {teacher.subjects.length > 0 && (
@@ -552,26 +485,6 @@ const Teachers = () => {
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
-                        {teacher.assignedClasses && teacher.assignedClasses.length > 0 && (
-                          <div>
-                            <p className="mb-2 text-xs font-semibold text-primary">Classes Taught:</p>
-                            <div className="flex flex-wrap gap-1">
-                              {teacher.assignedClasses.map((cls, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  Grade {cls.grade} - {cls.stream_name}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {teacher.classResponsibility && (
-                          <div>
-                            <p className="mb-1 text-xs font-semibold text-primary">Class Teacher:</p>
-                            <Badge variant="default" className="text-xs">
-                              {teacher.classResponsibility}
-                            </Badge>
                           </div>
                         )}
                       </div>

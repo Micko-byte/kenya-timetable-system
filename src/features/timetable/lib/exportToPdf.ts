@@ -1,36 +1,130 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+const PRINT_STYLE = `
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  .print-shell {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .print-page {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-page .timetable-print-root {
+    transform-origin: top left;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-page table {
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  .print-page input,
+  .print-page button {
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .print-page [data-no-print] {
+    display: none !important;
+  }
+`;
+
+function cloneDocumentStyles(): string {
+  return Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+    .map((node) => node.outerHTML)
+    .join("\n");
+}
+
+function buildPrintableDocument(html: string, scale: number, headStyles: string): string {
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Timetable PDF</title>
+        ${headStyles}
+        <style>${PRINT_STYLE}</style>
+      </head>
+      <body>
+        <div class="print-shell">
+          <div class="print-page">
+            <div class="timetable-print-root" style="transform: scale(${scale}); width: ${100 / scale}%; max-width: ${100 / scale}%; overflow: hidden;">
+              ${html}
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
 
 export async function exportTimetableToPdf(elementId: string, fileName: string) {
   const element = document.getElementById(elementId);
-  if (!element) throw new Error('Timetable element not found');
+  if (!element) throw new Error("Timetable element not found");
 
-  // Force the element to render at a fixed A4-landscape pixel width for consistency
-  const originalWidth = element.style.width;
-  element.style.width = '1400px';
+  const printWidth = 1046;
+  const printHeight = 718;
+  const scale = Math.min(
+    1,
+    printWidth / Math.max(element.scrollWidth, 1),
+    printHeight / Math.max(element.scrollHeight, 1),
+  );
 
-  const canvas = await html2canvas(element, {
-    scale: 3, // Higher resolution for crisp text & colors
-    useCORS: true,
-    backgroundColor: '#ffffff',
-    logging: false,
-    windowWidth: 1440,
+  const printableHtml = buildPrintableDocument(element.outerHTML, scale, cloneDocumentStyles());
+  const win = window.open("", "_blank", "width=1200,height=900");
+  if (!win) {
+    throw new Error("Popup blocked. Allow popups to export PDF.");
+  }
+
+  win.document.open();
+  win.document.write(printableHtml);
+  win.document.close();
+
+  await new Promise<void>((resolve) => {
+    const timer = window.setInterval(() => {
+      if (win.document.readyState === "complete") {
+        window.clearInterval(timer);
+        resolve();
+      }
+    }, 50);
   });
 
-  // Restore original width
-  element.style.width = originalWidth;
+  win.focus();
+  win.print();
 
-  // A4 landscape dimensions in mm
-  const a4Width = 297;
-  const a4Height = 210;
-  const pdf = new jsPDF('landscape', 'mm', 'a4');
+  const cleanup = () => {
+    try {
+      win.close();
+    } catch {
+      // ignore
+    }
+  };
 
-  const imgData = canvas.toDataURL('image/png');
-  const imgWidth = a4Width - 10; // 5mm margin each side
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-  const yOffset = imgHeight > (a4Height - 10) ? 5 : (a4Height - imgHeight) / 2;
-
-  pdf.addImage(imgData, 'PNG', 5, yOffset, imgWidth, Math.min(imgHeight, a4Height - 10));
-  pdf.save(fileName);
+  window.setTimeout(cleanup, 1000);
 }
