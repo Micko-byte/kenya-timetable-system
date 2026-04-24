@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -17,12 +10,22 @@ import {
   Check,
   CreditCard,
   Crown,
+  Loader2,
   ReceiptText,
   ShieldCheck,
+  WalletCards,
   Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { BILLING_PLANS, type BillingPlanType } from "@/lib/billingPlans";
+import {
+  isValidKenyanMobileMoneyPhone,
+  normalizeKenyanPhoneNumber,
+  paystackApi,
+  type PaymentChannel,
+  type PaystackPlanType,
+} from "@/lib/paystack";
 
 interface Subscription {
   id: string;
@@ -40,20 +43,42 @@ interface PaymentLog {
   metadata: Record<string, any> | null;
 }
 
+const PAYMENT_CHANNELS: Array<{ label: string; value: PaymentChannel; description: string }> = [
+  { label: "Card", value: "card", description: "Visa, Mastercard, and other card payments" },
+  { label: "Mobile Money", value: "mobile_money", description: "Pay with a mobile money channel" },
+];
+
 const Billing = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [schoolId, setSchoolId] = useState("");
   const [schoolName, setSchoolName] = useState("");
   const [schoolEmail, setSchoolEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(true);
+  const [checkingOut, setCheckingOut] = useState<PaystackPlanType | null>(null);
+  const [verifyingReference, setVerifyingReference] = useState<string | null>(null);
   const [history, setHistory] = useState<PaymentLog[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<BillingPlanType | null>(null);
-  const [planDialogOpen, setPlanDialogOpen] = useState(false);
+  const [paymentChannel, setPaymentChannel] = useState<PaymentChannel>("card");
+  const [lastVerifiedReference, setLastVerifiedReference] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchSubscription();
   }, [navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const reference = params.get("reference");
+    if (!reference || reference === lastVerifiedReference) {
+      return;
+    }
+
+    setLastVerifiedReference(reference);
+    void verifyReference(reference).finally(() => {
+      navigate("/billing", { replace: true });
+    });
+  }, [location.search, lastVerifiedReference, navigate]);
 
   const currentPlan = useMemo(
     () =>
@@ -109,6 +134,59 @@ const Billing = () => {
     }
   };
 
+  const verifyReference = async (reference: string) => {
+    try {
+      setVerifyingReference(reference);
+      const result = await paystackApi.verifyPayment(reference);
+      if (result.subscription_status !== "active") {
+        throw new Error("Payment did not complete successfully.");
+      }
+
+      toast.success("Payment verified and subscription activated.");
+      await fetchSubscription();
+    } catch (error: any) {
+      toast.error(error.message || "Payment verification failed");
+    } finally {
+      setVerifyingReference(null);
+    }
+  };
+
+  const startCheckout = async (planType: PaystackPlanType) => {
+    if (!schoolId || !schoolEmail) {
+      toast.error("School billing details are still loading.");
+      return;
+    }
+
+    if (paymentChannel === "mobile_money" && !isValidKenyanMobileMoneyPhone(phone)) {
+      toast.error("Enter a valid Kenyan phone number like 07XXXXXXXX or 2547XXXXXXXX.");
+      return;
+    }
+
+    try {
+      setCheckingOut(planType);
+      const normalizedPhone = paymentChannel === "mobile_money" ? normalizeKenyanPhoneNumber(phone) : phone || undefined;
+
+      const { authorization_url } = await paystackApi.initializePayment({
+        schoolId,
+        schoolName,
+        email: schoolEmail,
+        planType,
+        paymentChannel,
+        callbackUrl: `${window.location.origin}/billing`,
+        phone: normalizedPhone,
+      });
+
+      if (!authorization_url) {
+        throw new Error("Paystack did not return a checkout URL.");
+      }
+
+      window.location.assign(authorization_url);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to start checkout");
+      setCheckingOut(null);
+    }
+  };
+
   const planCards: Array<{
     type: BillingPlanType;
     icon: typeof Zap;
@@ -136,9 +214,16 @@ const Billing = () => {
             Billing & Subscription
           </h1>
           <p className="text-muted-foreground">
-            Review your subscription, compare plans, and manage access for timetable exports.
+            Review your subscription, compare plans, and complete payment through the Paystack checkout flow.
           </p>
         </div>
+
+        {verifyingReference && (
+          <Card className="flex items-center gap-3 border-primary/20 bg-primary/5 p-4">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <p className="text-sm">Verifying payment reference {verifyingReference}...</p>
+          </Card>
+        )}
 
         {currentPlan && (
           <Card className="gradient-accent p-6">
@@ -165,6 +250,41 @@ const Billing = () => {
           </Card>
         )}
 
+        <Card className="p-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-end">
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Payment Method</label>
+              <div className="grid gap-2">
+                {PAYMENT_CHANNELS.map((channel) => (
+                  <button
+                    key={channel.value}
+                    type="button"
+                    onClick={() => setPaymentChannel(channel.value)}
+                    className={`rounded-xl border p-4 text-left transition-all ${
+                      paymentChannel === channel.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="font-semibold">{channel.label}</div>
+                    <div className="text-xs text-muted-foreground">{channel.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">School Email</label>
+              <Input value={schoolEmail} onChange={(e) => setSchoolEmail(e.target.value)} placeholder="you@school.com" />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Phone Number</label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="2547XXXXXXXX" />
+            </div>
+          </div>
+        </Card>
+
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {planCards.map((plan, index) => {
             const planDetails = BILLING_PLANS[plan.type];
@@ -172,7 +292,7 @@ const Billing = () => {
             return (
               <Card
                 key={plan.type}
-                className={`relative p-6 card-hover animate-slide-up ${isCurrent ? "ring-2 ring-primary" : ""}`}
+                className={`relative animate-slide-up p-6 card-hover ${isCurrent ? "ring-2 ring-primary" : ""}`}
                 style={{ animationDelay: `${index * 100}ms` }}
               >
                 {isCurrent && <Badge className="absolute right-4 top-4 bg-success">Current Plan</Badge>}
@@ -201,58 +321,52 @@ const Billing = () => {
                 </ul>
 
                 <Button
-                  onClick={() => {
-                    setSelectedPlan(plan.type);
-                    setPlanDialogOpen(true);
-                  }}
-                  disabled={loading || isCurrent || !schoolId}
+                  onClick={() => void startCheckout(plan.type as PaystackPlanType)}
+                  disabled={checkingOut === plan.type || loading || isCurrent || !schoolId}
                   className={`w-full ${isCurrent ? "" : "gradient-primary text-white hover:opacity-90"}`}
                 >
-                  {isCurrent ? "Current Plan" : plan.cta}
+                  {checkingOut === plan.type ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Redirecting...
+                    </>
+                  ) : isCurrent ? (
+                    "Current Plan"
+                  ) : (
+                    plan.cta
+                  )}
                 </Button>
               </Card>
             );
           })}
         </div>
 
-        <Dialog open={planDialogOpen} onOpenChange={setPlanDialogOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Plan selection saved</DialogTitle>
-              <DialogDescription>
-                {selectedPlan
-                  ? `${BILLING_PLANS[selectedPlan].name} is ready for ${schoolName || "your school"}.`
-                  : "Your plan selection is ready."}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <Card className="border-primary/10 bg-primary/5 p-4">
-                <p className="text-sm font-medium text-foreground">Billing contact</p>
-                <p className="mt-1 text-sm text-muted-foreground">{schoolEmail || "No billing email available"}</p>
-              </Card>
-
+        <Card className="p-6 gradient-secondary">
+          <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-primary">
+            <WalletCards className="h-5 w-5" />
+            Paystack Flow
+          </h3>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="mb-2 font-semibold">1. Select</p>
               <p className="text-sm text-muted-foreground">
-                Billing is now managed from your subscription records in ElimuTime. Once your school subscription is marked active, PDF and Excel downloads unlock automatically across the app.
+                Pick a plan and choose your payment method on this page.
               </p>
-
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" className="flex-1" onClick={() => setPlanDialogOpen(false)}>
-                  Close
-                </Button>
-                <Button
-                  className="flex-1 gradient-primary text-white"
-                  onClick={() => {
-                    setPlanDialogOpen(false);
-                    toast.success("Plan selection noted. Activate the subscription record to unlock exports.");
-                  }}
-                >
-                  Continue
-                </Button>
-              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="mb-2 font-semibold">2. Redirect</p>
+              <p className="text-sm text-muted-foreground">
+                Paystack opens its hosted checkout page and handles the payment securely.
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="mb-2 font-semibold">3. Verify</p>
+              <p className="text-sm text-muted-foreground">
+                After payment, the reference is verified and the subscription updates automatically.
+              </p>
+            </div>
+          </div>
+        </Card>
 
         <Card className="p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
