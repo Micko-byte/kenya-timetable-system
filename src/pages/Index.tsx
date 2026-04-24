@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
-import logo from "@/assets/logo.svg";
+import logo from "@/assets/logo-transparent.png";
 import heroImage from "@/assets/hero.png";
 import demoGif from "@/assets/demo.gif";
 import teacherIcon from "@/assets/feature-teacher.svg";
@@ -225,6 +225,9 @@ const Index = () => {
                 <img
                   src={heroImage}
                   alt="School timetable preview"
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
                   className="h-auto max-h-[360px] w-full max-w-[320px] rounded-2xl object-contain md:max-h-[760px] md:max-w-[700px]"
                 />
               </div>
@@ -249,6 +252,8 @@ const Index = () => {
                 <img
                   src={demoGif}
                   alt="ElimuTime product demo"
+                  loading="lazy"
+                  decoding="async"
                   className="h-auto w-full object-cover"
                 />
                 <div className="hidden">
@@ -286,7 +291,14 @@ const Index = () => {
                       <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
                         <div className="space-y-5 md:space-y-6">
                           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/12 p-3 md:h-20 md:w-20 md:p-4">
-                            <img src={feature.icon} alt="" aria-hidden="true" className="h-full w-full object-contain" />
+                            <img
+                              src={feature.icon}
+                              alt=""
+                              aria-hidden="true"
+                              loading="lazy"
+                              decoding="async"
+                              className="h-full w-full object-contain"
+                            />
                           </div>
                           <div className="space-y-3">
                             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">

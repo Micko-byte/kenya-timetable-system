@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import authBackground from "@/assets/auth-background.jpg";
-import logo from "@/assets/logo.svg";
+import logo from "@/assets/logo-transparent.png";
 
 interface AuthProps {
   isSignUp?: boolean;

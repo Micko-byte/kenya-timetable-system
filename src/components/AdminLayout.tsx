@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import logo from "@/assets/logo.svg";
+import logo from "@/assets/logo-transparent.png";
 
 interface AdminLayoutProps {
   children: ReactNode;
