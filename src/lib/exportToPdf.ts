@@ -1,31 +1,102 @@
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
+const A4_LANDSCAPE_WIDTH_MM = 297;
+const A4_LANDSCAPE_HEIGHT_MM = 210;
+const PAGE_MARGIN_MM = 10;
+const PRINTABLE_WIDTH_PX = 1046;
+const PRINTABLE_HEIGHT_PX = 718;
+
+async function waitForFontsAndImages(container: HTMLElement) {
+  if ("fonts" in document) {
+    try {
+      await (document as Document & { fonts: FontFaceSet }).fonts.ready;
+    } catch {
+      // ignore font loading failures
+    }
+  }
+
+  const images = Array.from(container.querySelectorAll("img"));
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        }),
+    ),
+  );
+}
+
+function preparePrintClone(element: HTMLElement) {
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-10000px";
+  wrapper.style.top = "0";
+  wrapper.style.width = `${PRINTABLE_WIDTH_PX}px`;
+  wrapper.style.height = `${PRINTABLE_HEIGHT_PX}px`;
+  wrapper.style.overflow = "hidden";
+  wrapper.style.background = "#ffffff";
+  wrapper.style.pointerEvents = "none";
+
+  const inner = document.createElement("div");
+  inner.style.width = `${PRINTABLE_WIDTH_PX}px`;
+  inner.style.height = `${PRINTABLE_HEIGHT_PX}px`;
+  inner.style.overflow = "hidden";
+  inner.style.transformOrigin = "top left";
+
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.style.margin = "0";
+  clone.style.width = `${PRINTABLE_WIDTH_PX}px`;
+  clone.style.maxWidth = `${PRINTABLE_WIDTH_PX}px`;
+  clone.style.minWidth = "0";
+  clone.style.overflow = "hidden";
+  clone.style.boxSizing = "border-box";
+
+  inner.appendChild(clone);
+  wrapper.appendChild(inner);
+  document.body.appendChild(wrapper);
+
+  return { wrapper, inner };
+}
+
 export async function exportTimetableToPdf(elementId: string, fileName: string) {
   const element = document.getElementById(elementId);
   if (!element) throw new Error("Timetable element not found");
 
-  const originalWidth = element.style.width;
-  element.style.width = "1400px";
+  const { wrapper, inner } = preparePrintClone(element);
 
-  const canvas = await html2canvas(element, {
-    scale: 3,
-    useCORS: true,
-    backgroundColor: "#ffffff",
-    logging: false,
-    windowWidth: 1440,
-  });
+  try {
+    await waitForFontsAndImages(wrapper);
 
-  element.style.width = originalWidth;
+    const canvas = await html2canvas(inner, {
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      scale: window.devicePixelRatio > 1 ? 2 : 1.5,
+      width: PRINTABLE_WIDTH_PX,
+      height: PRINTABLE_HEIGHT_PX,
+      windowWidth: PRINTABLE_WIDTH_PX,
+      windowHeight: PRINTABLE_HEIGHT_PX,
+      scrollX: 0,
+      scrollY: 0,
+      logging: false,
+    });
 
-  const pdf = new jsPDF("landscape", "mm", "a4");
-  const a4Width = 297;
-  const a4Height = 210;
-  const imgData = canvas.toDataURL("image/png");
-  const imgWidth = a4Width - 10;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
-  const yOffset = imgHeight > a4Height - 10 ? 5 : (a4Height - imgHeight) / 2;
+    const pdf = new jsPDF("landscape", "mm", "a4");
+    const pageWidth = A4_LANDSCAPE_WIDTH_MM - PAGE_MARGIN_MM * 2;
+    const pageHeight = A4_LANDSCAPE_HEIGHT_MM - PAGE_MARGIN_MM * 2;
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const finalHeight = Math.min(imgHeight, pageHeight);
+    const yOffset = PAGE_MARGIN_MM + Math.max(0, (pageHeight - finalHeight) / 2);
 
-  pdf.addImage(imgData, "PNG", 5, yOffset, imgWidth, Math.min(imgHeight, a4Height - 10));
-  pdf.save(fileName);
+    pdf.addImage(canvas.toDataURL("image/png"), "PNG", PAGE_MARGIN_MM, yOffset, imgWidth, finalHeight);
+    pdf.save(fileName);
+  } finally {
+    wrapper.remove();
+  }
 }

@@ -1,130 +1,102 @@
-const PRINT_STYLE = `
-  @page {
-    size: A4 landscape;
-    margin: 10mm;
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+
+const A4_LANDSCAPE_WIDTH_MM = 297;
+const A4_LANDSCAPE_HEIGHT_MM = 210;
+const PAGE_MARGIN_MM = 10;
+const PRINTABLE_WIDTH_PX = 1046;
+const PRINTABLE_HEIGHT_PX = 718;
+
+async function waitForFontsAndImages(container: HTMLElement) {
+  if ("fonts" in document) {
+    try {
+      await (document as Document & { fonts: FontFaceSet }).fonts.ready;
+    } catch {
+      // ignore font loading failures
+    }
   }
 
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-    background: #fff;
-    color: #0f172a;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  body {
-    font-family: Arial, Helvetica, sans-serif;
-  }
-
-  .print-shell {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .print-page {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .print-page .timetable-print-root {
-    transform-origin: top left;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .print-page table {
-    width: 100%;
-    table-layout: fixed;
-  }
-
-  .print-page input,
-  .print-page button {
-    border: 0 !important;
-    box-shadow: none !important;
-    background: transparent !important;
-  }
-
-  .print-page [data-no-print] {
-    display: none !important;
-  }
-`;
-
-function cloneDocumentStyles(): string {
-  return Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-    .map((node) => node.outerHTML)
-    .join("\n");
+  const images = Array.from(container.querySelectorAll("img"));
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        }),
+    ),
+  );
 }
 
-function buildPrintableDocument(html: string, scale: number, headStyles: string): string {
-  return `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Timetable PDF</title>
-        ${headStyles}
-        <style>${PRINT_STYLE}</style>
-      </head>
-      <body>
-        <div class="print-shell">
-          <div class="print-page">
-            <div class="timetable-print-root" style="transform: scale(${scale}); width: ${100 / scale}%; max-width: ${100 / scale}%; overflow: hidden;">
-              ${html}
-            </div>
-          </div>
-        </div>
-      </body>
-    </html>
-  `;
+function preparePrintClone(element: HTMLElement) {
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-10000px";
+  wrapper.style.top = "0";
+  wrapper.style.width = `${PRINTABLE_WIDTH_PX}px`;
+  wrapper.style.height = `${PRINTABLE_HEIGHT_PX}px`;
+  wrapper.style.overflow = "hidden";
+  wrapper.style.background = "#ffffff";
+  wrapper.style.pointerEvents = "none";
+
+  const inner = document.createElement("div");
+  inner.style.width = `${PRINTABLE_WIDTH_PX}px`;
+  inner.style.height = `${PRINTABLE_HEIGHT_PX}px`;
+  inner.style.overflow = "hidden";
+  inner.style.transformOrigin = "top left";
+
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.style.margin = "0";
+  clone.style.width = `${PRINTABLE_WIDTH_PX}px`;
+  clone.style.maxWidth = `${PRINTABLE_WIDTH_PX}px`;
+  clone.style.minWidth = "0";
+  clone.style.overflow = "hidden";
+  clone.style.boxSizing = "border-box";
+
+  inner.appendChild(clone);
+  wrapper.appendChild(inner);
+  document.body.appendChild(wrapper);
+
+  return { wrapper, inner, clone };
 }
 
 export async function exportTimetableToPdf(elementId: string, fileName: string) {
   const element = document.getElementById(elementId);
   if (!element) throw new Error("Timetable element not found");
 
-  const printWidth = 1046;
-  const printHeight = 718;
-  const scale = Math.min(
-    1,
-    printWidth / Math.max(element.scrollWidth, 1),
-    printHeight / Math.max(element.scrollHeight, 1),
-  );
+  const { wrapper, inner } = preparePrintClone(element);
 
-  const printableHtml = buildPrintableDocument(element.outerHTML, scale, cloneDocumentStyles());
-  const win = window.open("", "_blank", "width=1200,height=900");
-  if (!win) {
-    throw new Error("Popup blocked. Allow popups to export PDF.");
+  try {
+    await waitForFontsAndImages(wrapper);
+
+    const canvas = await html2canvas(inner, {
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      scale: window.devicePixelRatio > 1 ? 2 : 1.5,
+      width: PRINTABLE_WIDTH_PX,
+      height: PRINTABLE_HEIGHT_PX,
+      windowWidth: PRINTABLE_WIDTH_PX,
+      windowHeight: PRINTABLE_HEIGHT_PX,
+      scrollX: 0,
+      scrollY: 0,
+      logging: false,
+    });
+
+    const pdf = new jsPDF("landscape", "mm", "a4");
+    const pageWidth = A4_LANDSCAPE_WIDTH_MM - PAGE_MARGIN_MM * 2;
+    const pageHeight = A4_LANDSCAPE_HEIGHT_MM - PAGE_MARGIN_MM * 2;
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const finalHeight = Math.min(imgHeight, pageHeight);
+    const yOffset = PAGE_MARGIN_MM + Math.max(0, (pageHeight - finalHeight) / 2);
+
+    pdf.addImage(canvas.toDataURL("image/png"), "PNG", PAGE_MARGIN_MM, yOffset, imgWidth, finalHeight);
+    pdf.save(fileName);
+  } finally {
+    wrapper.remove();
   }
-
-  win.document.open();
-  win.document.write(printableHtml);
-  win.document.close();
-
-  await new Promise<void>((resolve) => {
-    const timer = window.setInterval(() => {
-      if (win.document.readyState === "complete") {
-        window.clearInterval(timer);
-        resolve();
-      }
-    }, 50);
-  });
-
-  win.focus();
-  win.print();
-
-  const cleanup = () => {
-    try {
-      win.close();
-    } catch {
-      // ignore
-    }
-  };
-
-  window.setTimeout(cleanup, 1000);
 }
