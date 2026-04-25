@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PlanSelectionModal } from "@/components/pricing/PlanSelectionModal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { PastTimetableUpload } from "@/components/PastTimetableUpload";
 import { getCurrentSchoolSession } from "@/lib/session";
+import {
+  hydrateSelectedFrontendPlan,
+  setSelectedFrontendPlan,
+  type FrontendPlanType,
+  type PricingSnapshot,
+} from "@/lib/planSelection";
+import { toast } from "sonner";
+import { advanceSchoolOnboardingTour, beginSchoolOnboardingTour, startPendingOnboardingTour } from "@/lib/onboardingTour";
 import {
   Users,
   BookOpen,
@@ -27,6 +36,8 @@ const Dashboard = () => {
     timetables: 0,
   });
   const [schoolId, setSchoolId] = useState<string>("");
+  const [selectedPlan, setSelectedPlan] = useState<FrontendPlanType | null>(null);
+  const [planStatusReady, setPlanStatusReady] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -38,16 +49,25 @@ const Dashboard = () => {
 
       setSchoolId(session.schoolId);
 
-      // Fetch school template preference
-      const { data: school } = await supabase
-        .from("schools")
-        .select("timetable_template")
-        .eq("id", session.schoolId)
-        .single();
+      const [{ data: school }, { data: subscription }] = await Promise.all([
+        supabase
+          .from("schools")
+          .select("timetable_template")
+          .eq("id", session.schoolId)
+          .single(),
+        supabase
+          .from("subscriptions")
+          .select("plan_type")
+          .eq("school_id", session.schoolId)
+          .maybeSingle(),
+      ]);
 
       if (school) {
         // Template preference fetched but not used in this view anymore
       }
+
+      setSelectedPlan(hydrateSelectedFrontendPlan(session.schoolId, subscription?.plan_type));
+      setPlanStatusReady(true);
 
         // Fetch stats
         const [teachersCount, streamsCount, timetablesCount] =
@@ -75,6 +95,24 @@ const Dashboard = () => {
 
     fetchDashboardData();
   }, [navigate]);
+
+  const handleSelectPlan = (planType: FrontendPlanType, snapshot: PricingSnapshot) => {
+    setSelectedFrontendPlan(planType, schoolId, snapshot);
+    if (schoolId) {
+      beginSchoolOnboardingTour(schoolId);
+    } else {
+      startPendingOnboardingTour();
+    }
+    setSelectedPlan(planType);
+    toast.success("Plan selected. Your dashboard is now ready.");
+  };
+
+  const handleGetStarted = () => {
+    if (schoolId) {
+      advanceSchoolOnboardingTour(schoolId);
+    }
+    navigate("/streams");
+  };
 
   const cards = [
     {
@@ -105,6 +143,12 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
+      <PlanSelectionModal
+        open={planStatusReady && !selectedPlan}
+        currentPlan={selectedPlan}
+        onSelectPlan={handleSelectPlan}
+      />
+
       <div className="space-y-6 md:space-y-8">
         {/* Powered by Notify AI Badge */}
         <div className="text-center mb-2">
@@ -134,7 +178,8 @@ const Dashboard = () => {
             <div>
               <Button
                 size="lg"
-                onClick={() => navigate("/streams")}
+                onClick={handleGetStarted}
+                data-tour-id="tour-dashboard-get-started"
                 className="text-base transition-all gap-2 mt-6 shadow-2xl hover:shadow-2xl font-semibold rounded-full gradient-primary text-white hover:opacity-90"
               >
                 Get Started

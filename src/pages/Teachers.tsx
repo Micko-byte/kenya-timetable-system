@@ -12,6 +12,7 @@ import { Plus, Trash2, Users, Mail, BookOpen, Loader2, ArrowLeft } from "lucide-
 import { Badge } from "@/components/ui/badge";
 import { SubjectClassAssignmentsEditor } from "@/components/SubjectClassAssignmentsEditor";
 import { getCurrentSchoolSession } from "@/lib/session";
+import { advanceSchoolOnboardingTour } from "@/lib/onboardingTour";
 
 interface Teacher {
   id: string;
@@ -233,6 +234,20 @@ const Teachers = () => {
     }));
   };
 
+  const handleOpenTeacherForm = () => {
+    setShowForm(true);
+    if (schoolId) {
+      advanceSchoolOnboardingTour(schoolId);
+    }
+  };
+
+  const handleGoToTimetables = () => {
+    if (schoolId) {
+      advanceSchoolOnboardingTour(schoolId);
+    }
+    navigate("/timetables");
+  };
+
   return (
     <DashboardLayout>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -247,7 +262,8 @@ const Teachers = () => {
               Back
             </Button>
             <Button
-              onClick={() => navigate("/timetables")}
+              onClick={handleGoToTimetables}
+              data-tour-id="tour-teachers-next"
               className="rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0] lg:hidden"
             >
               Next →
@@ -266,14 +282,16 @@ const Teachers = () => {
 
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
             <Button
-              onClick={() => setShowForm(true)}
+              onClick={handleOpenTeacherForm}
+              data-tour-id="tour-teachers-add"
               className="w-full gap-2 rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
             >
               + Add Teacher
             </Button>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Button
-                onClick={() => navigate("/timetables")}
+                onClick={handleGoToTimetables}
+                data-tour-id="tour-teachers-next"
                 className="hidden w-full gap-2 rounded-full bg-[#359AFF] font-semibold text-white hover:bg-[#1F73E0] sm:w-auto lg:inline-flex"
               >
                 Next →
@@ -502,7 +520,7 @@ const Teachers = () => {
               <Users className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
               <h3 className="mb-2 text-xl font-semibold">No teachers yet</h3>
               <p className="mb-4 text-muted-foreground">Start by adding your first teacher</p>
-              <Button onClick={() => setShowForm(true)} className="rounded-full gradient-primary text-white">
+              <Button onClick={handleOpenTeacherForm} className="rounded-full gradient-primary text-white">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Your First Teacher
               </Button>

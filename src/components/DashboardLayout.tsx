@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/logo-transparent.png";
+import { OnboardingGuide } from "./OnboardingGuide";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -538,6 +539,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {schoolId ? <OnboardingGuide schoolId={schoolId} /> : null}
     </div>
   );
 };

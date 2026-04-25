@@ -19,6 +19,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getCurrentSchoolSession } from "@/lib/session";
+import { advanceSchoolOnboardingTour } from "@/lib/onboardingTour";
 import {
   Plus,
   BookOpen,
@@ -151,6 +152,20 @@ const Streams = () => {
   }, {} as Record<number, Stream[]>);
   const hasStreams = Object.keys(groupedStreams).length > 0;
 
+  const handleOpenStreamsForm = () => {
+    setShowForm(true);
+    if (schoolId) {
+      advanceSchoolOnboardingTour(schoolId);
+    }
+  };
+
+  const handleGoToTeachers = () => {
+    if (schoolId) {
+      advanceSchoolOnboardingTour(schoolId);
+    }
+    navigate("/teachers");
+  };
+
   return (
     <DashboardLayout>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[80vh] space-y-6 text-foreground">
@@ -165,7 +180,8 @@ const Streams = () => {
               Back
             </Button>
             <Button
-              onClick={() => navigate("/teachers")}
+              onClick={handleGoToTeachers}
+              data-tour-id="tour-streams-next"
               className="rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] lg:hidden"
             >
               Next →
@@ -192,13 +208,15 @@ const Streams = () => {
               </Button>
             )}
             <Button
-              onClick={() => setShowForm(true)}
+              onClick={handleOpenStreamsForm}
+              data-tour-id="tour-streams-add"
               className="w-full gap-2 rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] sm:w-auto"
             >
               + Add Streams
             </Button>
             <Button
-              onClick={() => navigate("/teachers")}
+              onClick={handleGoToTeachers}
+              data-tour-id="tour-streams-next"
               className="hidden w-full gap-2 rounded-full bg-[#359AFF] text-base font-semibold text-white hover:bg-[#1F73E0] sm:w-auto lg:inline-flex"
             >
               Next →
@@ -342,7 +360,7 @@ const Streams = () => {
                   <p className="mb-6 text-muted-foreground">
                     Create your first stream to organize classes and unlock timetable generation.
                   </p>
-                  <Button onClick={() => setShowForm(true)} className="rounded-full gradient-primary text-white">
+                  <Button onClick={handleOpenStreamsForm} className="rounded-full gradient-primary text-white">
                     <Plus className="mr-2 h-4 w-4" />
                     Create Your First Streams
                   </Button>

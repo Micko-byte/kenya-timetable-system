@@ -14,26 +14,35 @@ export interface PaystackPlan {
 
 export const PAYSTACK_PLANS: Record<PaystackPlanType, PaystackPlan> = {
   starter: {
-    name: "Starter",
-    amount: 350000,
+    name: "Basic",
+    amount: 50000,
     period: "per term",
-    description: "For small private primary schools",
-    features: ["Up to 20 classes", "1 admin user", "PDF export", "Email support"],
+    description: "A term-based plan for schools within standard staffing limits",
+    features: [
+      "Up to 33 teachers included",
+      "Up to 27 streams included",
+      "Unlimited timetable generations within the term",
+    ],
   },
   growth: {
-    name: "Growth",
+    name: "Legacy Pro",
     amount: 750000,
     period: "per term",
-    description: "For mid-size CBC private schools",
-    features: ["Up to 50 classes", "3 admin users", "WhatsApp support", "Onboarding call"],
-    popular: true,
+    description: "Legacy plan reserved for existing older billing records",
+    features: ["Legacy pricing support", "Existing account continuity"],
   },
   international: {
-    name: "International",
-    amount: 1800000,
+    name: "Premium",
+    amount: 249900,
     period: "per term",
-    description: "For international schools",
-    features: ["Unlimited classes", "Unlimited users", "Priority support", "Custom onboarding"],
+    description: "Best for larger schools that need unlimited access and upgrades",
+    features: [
+      "Unlimited teachers",
+      "Unlimited streams",
+      "Unlimited timetable generations",
+      "Master timetable access",
+      "Early access to system upgrades",
+    ],
   },
 };
 
@@ -44,7 +53,9 @@ type FunctionResponse<T> = {
 };
 
 async function callFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   if (!session) {
     throw new Error("You must be logged in to perform this action.");
@@ -65,7 +76,7 @@ async function callFunction<T>(name: string, body: Record<string, unknown>): Pro
     throw new Error(error.message || `Failed to call ${name}`);
   }
 
-  return (data?.data ?? data) as T;
+  return ((data?.data ?? data) as FunctionResponse<T>) as T;
 }
 
 declare global {
@@ -121,10 +132,8 @@ export interface PaystackVerifyResult {
 }
 
 export const paystackApi = {
-  initializePayment: (input: PaystackInitInput) =>
-    callFunction<PaystackInitResult>("paystack-init", input),
-  verifyPayment: (reference: string) =>
-    callFunction<PaystackVerifyResult>("paystack-verify", { reference }),
+  initializePayment: (input: PaystackInitInput) => callFunction<PaystackInitResult>("paystack-init", input),
+  verifyPayment: (reference: string) => callFunction<PaystackVerifyResult>("paystack-verify", { reference }),
   openInlineCheckout: async (accessCode: string) => {
     if (!accessCode) {
       throw new Error("Missing Paystack access code.");

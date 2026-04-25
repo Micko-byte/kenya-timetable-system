@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
@@ -9,59 +9,14 @@ import teacherIcon from "@/assets/feature-teacher.svg";
 import streamIcon from "@/assets/feature-stream.svg";
 import timetableIcon from "@/assets/feature-timetable.svg";
 import { Header } from "@/components/Header";
-import { Badge } from "@/components/ui/badge";
+import { PricingSection } from "@/components/pricing/PricingSection";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
+import { startPendingOnboardingTour } from "@/lib/onboardingTour";
+import { setSelectedFrontendPlan, type FrontendPlanType, type PricingSnapshot } from "@/lib/planSelection";
 
 const HERO_WORDS = ["fast.", "accurate.", "effortless."];
-
-const PLANS = [
-  {
-    name: "Starter",
-    termPrice: 3500,
-    yearPrice: 9555,
-    description: "For small private primary schools",
-    features: ["Up to 20 classes", "1 admin user", "PDF export", "Email support"],
-    color: "purple",
-  },
-  {
-    name: "Growth",
-    termPrice: 7500,
-    yearPrice: 20437,
-    description: "For mid-size CBC private schools",
-    features: ["Up to 50 classes", "3 admin users", "WhatsApp support", "Onboarding call"],
-    color: "orange",
-    popular: true,
-  },
-  {
-    name: "International",
-    termPrice: 18000,
-    yearPrice: 45900,
-    description: "For international schools",
-    features: ["Unlimited classes", "Unlimited users", "Priority support", "Custom onboarding"],
-    color: "blue",
-  },
-] as const;
-
-const gradientCardClasses: Record<string, string> = {
-  purple: "bg-gradient-to-br from-secondary to-secondary/80 text-white",
-  orange: "bg-gradient-to-br from-accent to-accent/80 text-white",
-  blue: "bg-gradient-to-br from-primary to-primary/80 text-white",
-};
-
-const gradientCardStyles: Record<string, CSSProperties> = {
-  purple: {
-    boxShadow: "0 20px 45px hsl(var(--secondary) / 0.35)",
-  },
-  orange: {
-    boxShadow: "0 20px 45px hsl(var(--accent) / 0.35)",
-  },
-  blue: {
-    boxShadow: "0 20px 45px hsl(var(--primary) / 0.35)",
-  },
-};
 
 const termlyCardClasses: Record<string, string> = {
   purple: "bg-gradient-to-br from-secondary/14 via-white to-white border-secondary/20",
@@ -69,21 +24,18 @@ const termlyCardClasses: Record<string, string> = {
   blue: "bg-gradient-to-br from-primary/14 via-white to-white border-primary/20",
 };
 
-const planAccentClasses: Record<string, { price: string; button: string; bullet: string }> = {
+const planAccentClasses: Record<string, { price: string; button: string }> = {
   purple: {
     price: "text-secondary",
     button: "bg-secondary text-white hover:bg-secondary/90",
-    bullet: "text-secondary",
   },
   orange: {
     price: "text-accent",
     button: "bg-accent text-white hover:bg-accent/90",
-    bullet: "text-accent",
   },
   blue: {
     price: "text-primary",
     button: "bg-primary text-white hover:bg-primary/90",
-    bullet: "text-primary",
   },
 };
 
@@ -95,7 +47,8 @@ const FEATURES = [
     color: "purple",
     revealLabel: "On the flip side",
     revealTitle: "See staffing at a glance",
-    revealDescription: "Hover to reveal a cleaner view of who teaches what, where the gaps are, and how workloads stay balanced.",
+    revealDescription:
+      "Hover to reveal a cleaner view of who teaches what, where the gaps are, and how workloads stay balanced.",
     highlights: ["Load balance snapshots", "Subject ownership clarity", "Quick staffing confidence"],
   },
   {
@@ -105,7 +58,8 @@ const FEATURES = [
     color: "orange",
     revealLabel: "Behind the card",
     revealTitle: "Turn structure into flow",
-    revealDescription: "The back view shows how streams line up neatly so classes, rooms, and learning groups stay easy to follow.",
+    revealDescription:
+      "The back view shows how streams line up neatly so classes, rooms, and learning groups stay easy to follow.",
     highlights: ["Stream grouping cues", "Clear room planning", "Less manual reshuffling"],
   },
   {
@@ -115,14 +69,14 @@ const FEATURES = [
     color: "blue",
     revealLabel: "What opens up",
     revealTitle: "From draft to done faster",
-    revealDescription: "Flip the card to imagine a timetable that resolves clashes quickly and leaves your team reviewing, not rebuilding.",
+    revealDescription:
+      "Flip the card to imagine a timetable that resolves clashes quickly and leaves your team reviewing, not rebuilding.",
     highlights: ["Conflict-aware layouts", "Faster first drafts", "More time for review"],
   },
 ] as const;
 
 const Index = () => {
   const navigate = useNavigate();
-  const [isYearly, setIsYearly] = useState(false);
   const [heroWordIndex, setHeroWordIndex] = useState(0);
   const [typedWord, setTypedWord] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
@@ -176,6 +130,12 @@ const Index = () => {
     return () => window.clearTimeout(timeout);
   }, [heroWordIndex, isDeleting, typedWord]);
 
+  const handleSelectPlan = (planType: FrontendPlanType, snapshot: PricingSnapshot) => {
+    setSelectedFrontendPlan(planType, undefined, snapshot);
+    startPendingOnboardingTour();
+    navigate("/signup");
+  };
+
   return (
     <div className="relative overflow-y-auto scroll-smooth bg-transparent">
       <Header />
@@ -202,12 +162,15 @@ const Index = () => {
                     <br />
                     <span className="inline-flex min-h-[1.2em] items-center bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
                       {typedWord}
-                      <span className="ml-1 inline-block h-[0.95em] w-[3px] animate-pulse rounded-full bg-primary" aria-hidden="true" />
+                      <span
+                        className="ml-1 inline-block h-[0.95em] w-[3px] animate-pulse rounded-full bg-primary"
+                        aria-hidden="true"
+                      />
                     </span>
                   </h1>
                   <p className="text-xl leading-relaxed text-muted-foreground">
-                    Timetables built in seconds, so your school spends less time planning and more time
-                    on what matters most: teaching.
+                    Timetables built in seconds, so your school spends less time planning and more time on what matters
+                    most: teaching.
                   </p>
                 </div>
 
@@ -249,13 +212,7 @@ const Index = () => {
           <div className="container mx-auto px-4 py-20">
             <div className="mx-auto max-w-4xl text-center">
               <div className="mb-8 overflow-hidden rounded-2xl bg-muted/90 shadow-[0_18px_45px_rgba(1,16,39,0.08)] backdrop-blur-sm">
-                <img
-                  src={demoGif}
-                  alt="ElimuTime product demo"
-                  loading="lazy"
-                  decoding="async"
-                  className="h-auto w-full object-cover"
-                />
+                <img src={demoGif} alt="ElimuTime product demo" loading="lazy" decoding="async" className="h-auto w-full object-cover" />
                 <div className="hidden">
                   <div className="mb-4 text-4xl" aria-hidden="true">
                     ▶
@@ -268,172 +225,103 @@ const Index = () => {
           </div>
         </section>
 
-      <section className="relative flex items-center justify-center overflow-hidden bg-transparent">
-        <div className="container relative z-10 mx-auto px-4 py-20">
-          <div className="rounded-[2rem] border border-white/50 bg-[#001429] px-6 py-12 shadow-[0_24px_70px_rgba(0,16,39,0.12)] md:px-10 md:py-14">
-            <div className="mb-16 text-center">
-              <h2 className="text-4xl font-bold text-white/70">Why choose ElimuTime?</h2>
-            </div>
+        <section className="relative flex items-center justify-center overflow-hidden bg-transparent">
+          <div className="container relative z-10 mx-auto px-4 py-20">
+            <div className="rounded-[2rem] border border-white/50 bg-[#001429] px-6 py-12 shadow-[0_24px_70px_rgba(0,16,39,0.12)] md:px-10 md:py-14">
+              <div className="mb-16 text-center">
+                <h2 className="text-4xl font-bold text-white/70">Why choose ElimuTime?</h2>
+              </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              {FEATURES.map((feature) => (
-                <div key={feature.title} className="feature-flip-card h-[430px] md:h-[360px]">
-                  <div className="feature-flip-card-inner h-full">
-                    <Card
-                      className={`feature-flip-face feature-flip-face-front relative flex h-full flex-col items-center justify-center overflow-hidden rounded-none border-0 p-7 text-center text-white shadow-[0_24px_60px_rgba(1,16,39,0.18)] md:p-10 ${
-                        feature.color === "purple"
-                          ? "bg-gradient-to-br from-secondary via-secondary/90 to-secondary/75"
-                          : feature.color === "orange"
-                            ? "bg-gradient-to-br from-accent via-accent/90 to-accent/75"
-                            : "bg-gradient-to-br from-primary via-primary/90 to-primary/75"
-                      }`}
-                    >
-                      <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
-                        <div className="space-y-5 md:space-y-6">
-                          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/12 p-3 md:h-20 md:w-20 md:p-4">
-                            <img
-                              src={feature.icon}
-                              alt=""
-                              aria-hidden="true"
-                              loading="lazy"
-                              decoding="async"
-                              className="h-full w-full object-contain"
-                            />
-                          </div>
-                          <div className="space-y-3">
-                            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
-                              Core feature
-                            </p>
-                            <h3 className="text-xl font-bold md:text-3xl">{feature.title}</h3>
-                            <p className="max-w-[18rem] text-sm leading-6 text-white/70 md:text-base md:leading-7">{feature.description}</p>
-                          </div>
-                        </div>
-              
-                      </div>
-                    </Card>
-
-                    <Card className={`feature-flip-face feature-flip-face-back overflow-hidden border rounded-none shadow-lg ${termlyCardClasses[feature.color]}`}>
-                      <div className="flex h-full flex-col justify-between p-3.5 text-left md:p-6">
-                        <div className="space-y-2.5 md:space-y-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] md:text-xs ${planAccentClasses[feature.color].price}`}>
-                                {feature.revealLabel}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {FEATURES.map((feature) => (
+                  <div key={feature.title} className="feature-flip-card h-[430px] md:h-[360px]">
+                    <div className="feature-flip-card-inner h-full">
+                      <Card
+                        className={`feature-flip-face feature-flip-face-front relative flex h-full flex-col items-center justify-center overflow-hidden rounded-none border-0 p-7 text-center text-white shadow-[0_24px_60px_rgba(1,16,39,0.18)] md:p-10 ${
+                          feature.color === "purple"
+                            ? "bg-gradient-to-br from-secondary via-secondary/90 to-secondary/75"
+                            : feature.color === "orange"
+                              ? "bg-gradient-to-br from-accent via-accent/90 to-accent/75"
+                              : "bg-gradient-to-br from-primary via-primary/90 to-primary/75"
+                        }`}
+                      >
+                        <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
+                          <div className="space-y-5 md:space-y-6">
+                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/12 p-3 md:h-20 md:w-20 md:p-4">
+                              <img
+                                src={feature.icon}
+                                alt=""
+                                aria-hidden="true"
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-contain"
+                              />
+                            </div>
+                            <div className="space-y-3">
+                              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">Core feature</p>
+                              <h3 className="text-xl font-bold md:text-3xl">{feature.title}</h3>
+                              <p className="max-w-[18rem] text-sm leading-6 text-white/70 md:text-base md:leading-7">
+                                {feature.description}
                               </p>
-                              <h3 className="mt-1.5 max-w-[11rem] text-[15px] font-bold leading-5 text-foreground md:mt-2 md:max-w-none md:text-xl md:leading-6">{feature.revealTitle}</h3>
-                            </div>
-                            <div className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold md:px-3 md:text-[11px] ${planAccentClasses[feature.color].button}`}>
-                              Live preview
                             </div>
                           </div>
+                        </div>
+                      </Card>
 
-                          <p className="text-[11px] leading-4 text-muted-foreground md:text-sm md:leading-6">{feature.revealDescription}</p>
-
-                          <div className="space-y-1 md:space-y-2">
-                            {feature.highlights.map((highlight) => (
-                              <div key={highlight} className="flex items-center gap-2">
-                                <span className={`inline-flex h-2 w-2 shrink-0 rounded-full ${feature.color === "purple" ? "bg-secondary" : feature.color === "orange" ? "bg-accent" : "bg-primary"}`} />
-                                <span className="text-[11px] font-medium leading-4 text-foreground md:text-sm">{highlight}</span>
+                      <Card className={`feature-flip-face feature-flip-face-back overflow-hidden border rounded-none shadow-lg ${termlyCardClasses[feature.color]}`}>
+                        <div className="flex h-full flex-col justify-between p-3.5 text-left md:p-6">
+                          <div className="space-y-2.5 md:space-y-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] md:text-xs ${planAccentClasses[feature.color].price}`}>
+                                  {feature.revealLabel}
+                                </p>
+                                <h3 className="mt-1.5 max-w-[11rem] text-[15px] font-bold leading-5 text-foreground md:mt-2 md:max-w-none md:text-xl md:leading-6">
+                                  {feature.revealTitle}
+                                </h3>
                               </div>
-                            ))}
+                              <div className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold md:px-3 md:text-[11px] ${planAccentClasses[feature.color].button}`}>
+                                Live preview
+                              </div>
+                            </div>
+
+                            <p className="text-[11px] leading-4 text-muted-foreground md:text-sm md:leading-6">
+                              {feature.revealDescription}
+                            </p>
+
+                            <div className="space-y-1 md:space-y-2">
+                              {feature.highlights.map((highlight) => (
+                                <div key={highlight} className="flex items-center gap-2">
+                                  <span
+                                    className={`inline-flex h-2 w-2 shrink-0 rounded-full ${
+                                      feature.color === "purple"
+                                        ? "bg-secondary"
+                                        : feature.color === "orange"
+                                          ? "bg-accent"
+                                          : "bg-primary"
+                                    }`}
+                                  />
+                                  <span className="text-[11px] font-medium leading-4 text-foreground md:text-sm">{highlight}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="mt-2 rounded-2xl border border-white/70 bg-white/70 px-3 py-2 text-[10px] leading-4 text-muted-foreground md:mt-4 md:px-4 md:py-3 md:text-xs md:leading-5">
+                            Built to replace last-minute timetable fixes with calmer reviews and quicker decisions.
                           </div>
                         </div>
-
-                        <div className="mt-2 rounded-2xl border border-white/70 bg-white/70 px-3 py-2 text-[10px] leading-4 text-muted-foreground md:mt-4 md:px-4 md:py-3 md:text-xs md:leading-5">
-                          Built to replace last-minute timetable fixes with calmer reviews and quicker decisions.
-                        </div>
-                      </div>
-                    </Card>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-
-      <section id="pricing" className="relative flex items-center justify-center overflow-hidden bg-white scroll-mt-28">
-        <div className="brand-grid-bg pointer-events-none absolute inset-0 z-0 opacity-100" />
-        <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.08),transparent_24%),radial-gradient(circle_at_bottom_right,hsl(var(--secondary)/0.07),transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,255,255,0.96))]" />
-        <div className="container relative z-10 mx-auto px-4 py-20">
-          <div className="mb-12 space-y-4 text-center">
-            <h2 className="text-4xl font-bold text-foreground">Simple, Transparent Pricing</h2>
-            <p className="text-xl text-muted-foreground">Choose the perfect plan for your school</p>
-
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <span className={`text-lg font-semibold ${!isYearly ? "text-foreground" : "text-muted-foreground"}`}>
-                Termly
-              </span>
-              <Switch
-                checked={isYearly}
-                onCheckedChange={setIsYearly}
-                aria-label="Toggle yearly pricing"
-                className="data-[state=checked]:bg-[linear-gradient(90deg,hsl(var(--primary)),hsl(var(--secondary)),hsl(var(--accent)))] data-[state=unchecked]:bg-muted"
-              />
-              <span className={`text-lg font-semibold ${isYearly ? "text-foreground" : "text-muted-foreground"}`}>
-                Yearly
-              </span>
-              {isYearly && <Badge className="bg-accent text-accent-foreground">Save up to 15%</Badge>}
-            </div>
-          </div>
-
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-3">
-            {PLANS.map((plan) => {
-              const price = isYearly ? plan.yearPrice : plan.termPrice;
-              const gradientClass = isYearly ? gradientCardClasses[plan.color] : "";
-              const gradientStyle = isYearly ? gradientCardStyles[plan.color] : undefined;
-              const accent = planAccentClasses[plan.color];
-
-              return (
-                <Card
-                  key={plan.name}
-                  className={`relative p-8 transition-all ${
-                    plan.popular && !isYearly ? "border-2 border-primary shadow-lg md:scale-105" : ""
-                  } ${isYearly ? gradientClass : `${termlyCardClasses[plan.color]} shadow-lg`}`}
-                  style={gradientStyle}
-                >
-                  {plan.popular && !isYearly && (
-                    <Badge className="absolute right-4 top-4 bg-primary text-primary-foreground">Most Popular</Badge>
-                  )}
-
-                  <h3 className={`mb-2 text-2xl font-bold ${isYearly ? "text-white" : "text-foreground"}`}>{plan.name}</h3>
-                  <p className={`mb-6 ${isYearly ? "text-white/80" : "text-muted-foreground"}`}>{plan.description}</p>
-
-                  <div className="mb-6">
-                    <div className="mb-1 flex items-baseline gap-1">
-                      <span className={`text-4xl font-bold ${isYearly ? "text-white" : accent.price}`}>
-                        KES {price.toLocaleString()}
-                      </span>
-                      <span className={isYearly ? "text-white/70" : "text-muted-foreground"}>
-                        /{isYearly ? "year" : "term"}
-                      </span>
+                      </Card>
                     </div>
                   </div>
-
-                  <ul className={`mb-8 space-y-3 ${isYearly ? "text-white/90" : ""}`}>
-                    {plan.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2">
-                        <span className={isYearly ? "text-white" : accent.bullet}>✓</span>
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Button
-                    onClick={() => navigate("/signup")}
-                    className={`w-full rounded-full font-semibold ${
-                      isYearly ? "bg-white text-foreground hover:bg-white/90" : accent.button
-                    }`}
-                  >
-                    Get Started
-                  </Button>
-                </Card>
-              );
-            })}
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
+
+      <PricingSection sectionId="pricing" onSelectPlan={handleSelectPlan} />
 
       <footer className="bg-foreground py-12 text-white">
         <div className="container mx-auto px-4">

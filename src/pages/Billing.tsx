@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { PricingSection } from "@/components/pricing/PricingSection";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,18 +8,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  Check,
   CreditCard,
-  Crown,
   Loader2,
   ReceiptText,
   ShieldCheck,
   WalletCards,
-  Zap,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { BILLING_PLANS, type BillingPlanType } from "@/lib/billingPlans";
+import {
+  mapSubscriptionPlanToFrontendPlan,
+  setSelectedFrontendPlan,
+  type FrontendPlanType,
+  type PricingSnapshot,
+} from "@/lib/planSelection";
 import {
   isValidKenyanMobileMoneyPhone,
   normalizeKenyanPhoneNumber,
@@ -86,6 +89,10 @@ const Billing = () => {
         ? BILLING_PLANS[subscription.plan_type as BillingPlanType]
         : null,
     [subscription]
+  );
+  const currentFrontendPlan = useMemo(
+    () => mapSubscriptionPlanToFrontendPlan(subscription?.plan_type),
+    [subscription?.plan_type],
   );
 
   const fetchSubscription = async () => {
@@ -187,16 +194,36 @@ const Billing = () => {
     }
   };
 
-  const planCards: Array<{
-    type: BillingPlanType;
-    icon: typeof Zap;
-    color: string;
-    cta: string;
-  }> = [
-    { type: "starter", icon: Zap, color: "bg-secondary", cta: "Subscribe" },
-    { type: "growth", icon: Crown, color: "bg-accent", cta: "Subscribe" },
-    { type: "international", icon: Crown, color: "bg-primary", cta: "Subscribe" },
-  ];
+  const handleBillingPlanSelect = (planType: FrontendPlanType, snapshot: PricingSnapshot) => {
+    setSelectedFrontendPlan(planType, schoolId, snapshot);
+    if (planType === "payg") {
+      toast.success("Pay-As-You-Go selected. You can keep generating and be charged per timetable generation.");
+      return;
+    }
+
+    const paystackPlanType: PaystackPlanType = planType === "basic" ? "starter" : "international";
+    void startCheckout(paystackPlanType);
+  };
+
+  const getBillingPlanAction = (
+    planType: FrontendPlanType,
+    snapshot: PricingSnapshot,
+    isCurrent: boolean,
+  ) => {
+    if (planType === "payg") {
+      return {
+        label: isCurrent ? "Selected" : "Select Plan",
+        onClick: () => handleBillingPlanSelect(planType, snapshot),
+      };
+    }
+
+    const targetPlanType: PaystackPlanType = planType === "basic" ? "starter" : "international";
+    return {
+      label: checkingOut === targetPlanType ? "Redirecting..." : isCurrent ? "Current Plan" : "Continue to Paystack",
+      onClick: () => handleBillingPlanSelect(planType, snapshot),
+      disabled: checkingOut === targetPlanType || loading || isCurrent || !schoolId,
+    };
+  };
 
   return (
     <DashboardLayout>
@@ -250,7 +277,14 @@ const Billing = () => {
           </Card>
         )}
 
-        <Card className="p-6">
+        <Card className="rounded-[2rem] border-primary/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,250,255,0.94))] p-6 shadow-[0_18px_45px_rgba(1,16,39,0.06)]">
+          <div className="mb-5 space-y-1">
+            <h2 className="text-xl font-bold text-foreground">Payment setup</h2>
+            <p className="text-sm text-muted-foreground">
+              Choose your payment method and confirm your billing contact details before checkout.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-end">
             <div>
               <label className="mb-2 block text-sm font-semibold">Payment Method</label>
@@ -260,10 +294,10 @@ const Billing = () => {
                     key={channel.value}
                     type="button"
                     onClick={() => setPaymentChannel(channel.value)}
-                    className={`rounded-xl border p-4 text-left transition-all ${
+                    className={`rounded-2xl border p-4 text-left transition-all ${
                       paymentChannel === channel.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/40"
+                        ? "border-primary bg-white shadow-[0_12px_30px_rgba(1,16,39,0.08)]"
+                        : "border-border bg-white/70 hover:border-primary/40"
                     }`}
                   >
                     <div className="font-semibold">{channel.label}</div>
@@ -285,90 +319,16 @@ const Billing = () => {
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {planCards.map((plan, index) => {
-            const planDetails = BILLING_PLANS[plan.type];
-            const isCurrent = subscription?.plan_type === plan.type;
-            return (
-              <Card
-                key={plan.type}
-                className={`relative animate-slide-up p-6 card-hover ${isCurrent ? "ring-2 ring-primary" : ""}`}
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                {isCurrent && <Badge className="absolute right-4 top-4 bg-success">Current Plan</Badge>}
+        <PricingSection
+          showHeading={false}
+          compact
+          currentPlan={currentFrontendPlan}
+          onSelectPlan={handleBillingPlanSelect}
+          getPlanAction={getBillingPlanAction}
+          className="bg-transparent"
+        />
 
-                <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-lg ${plan.color}`}>
-                  <plan.icon className="h-6 w-6 text-white" />
-                </div>
-
-                <h3 className="mb-2 text-2xl font-bold text-foreground">{planDetails.name}</h3>
-                <p className="mb-4 text-sm text-muted-foreground">{planDetails.description}</p>
-
-                <div className="mb-4">
-                  <span className="text-3xl font-bold text-primary">
-                    {`KES ${(planDetails.amount / 100).toLocaleString()}`}
-                  </span>
-                  <span className="text-sm text-muted-foreground">/{planDetails.period}</span>
-                </div>
-
-                <ul className="mb-6 space-y-3">
-                  {planDetails.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-sm">
-                      <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  onClick={() => void startCheckout(plan.type as PaystackPlanType)}
-                  disabled={checkingOut === plan.type || loading || isCurrent || !schoolId}
-                  className={`w-full ${isCurrent ? "" : "gradient-primary text-white hover:opacity-90"}`}
-                >
-                  {checkingOut === plan.type ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Redirecting...
-                    </>
-                  ) : isCurrent ? (
-                    "Current Plan"
-                  ) : (
-                    plan.cta
-                  )}
-                </Button>
-              </Card>
-            );
-          })}
-        </div>
-
-        <Card className="p-6 gradient-secondary">
-          <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-primary">
-            <WalletCards className="h-5 w-5" />
-            Paystack Flow
-          </h3>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="mb-2 font-semibold">1. Select</p>
-              <p className="text-sm text-muted-foreground">
-                Pick a plan and choose your payment method on this page.
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="mb-2 font-semibold">2. Redirect</p>
-              <p className="text-sm text-muted-foreground">
-                Paystack opens its hosted checkout page and handles the payment securely.
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="mb-2 font-semibold">3. Verify</p>
-              <p className="text-sm text-muted-foreground">
-                After payment, the reference is verified and the subscription updates automatically.
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
+        <Card className="rounded-[2rem] border-primary/10 bg-white/95 p-6 shadow-[0_18px_45px_rgba(1,16,39,0.06)]">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="flex items-center gap-2 text-xl font-bold text-primary">
               <ReceiptText className="h-5 w-5" />

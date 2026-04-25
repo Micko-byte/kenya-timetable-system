@@ -1,2 +1,8 @@
+[functions.paystack-init]
+verify_jwt = false
+
+[functions.paystack-verify]
+verify_jwt = false
+
 [functions.auth-signup]
 verify_jwt = false

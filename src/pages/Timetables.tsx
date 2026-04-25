@@ -29,11 +29,24 @@ import { useToast } from '@/hooks/use-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 import PaymentDialog from '@/features/timetable/components/PaymentDialog';
 import {
+  buildPricingSnapshot,
+  getSelectedFrontendPlan,
+  recordPlanGeneration,
+} from '@/lib/planSelection';
+import { advanceSchoolOnboardingTour } from '@/lib/onboardingTour';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -298,6 +311,8 @@ const Timetables = () => {
   const [usageCount, setUsageCount] = useState(0);
   const [streams, setStreams] = useState<StreamRecord[]>([]);
   const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
+  const [schoolId, setSchoolId] = useState('');
+  const [schoolEmail, setSchoolEmail] = useState('');
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
   const [streamGrids, setStreamGrids] = useState<Record<string, TimetableGrid>>({});
   const [guideOpen, setGuideOpen] = useState(false);
@@ -321,6 +336,9 @@ const Timetables = () => {
       if (!profile?.school_id) {
         return;
       }
+
+      setSchoolId(profile.school_id);
+      setSchoolEmail(user.email || '');
 
       const { data: schoolData } = await supabase
         .from('schools')
@@ -671,10 +689,17 @@ const Timetables = () => {
       setSelectedTeacher(teachers[0].name);
     }
 
+    const selectedPlan = getSelectedFrontendPlan(schoolId) || 'payg';
+    const generationSnapshot = buildPricingSnapshot(selectedPlan, teachers.length, streams.length);
+    recordPlanGeneration(generationSnapshot, schoolId);
+    if (schoolId) {
+      advanceSchoolOnboardingTour(schoolId);
+    }
+
     window.setTimeout(() => setIsGenerating(false), 300);
     toast({
       title: 'Timetables generated',
-      description: 'Your stream timetables are ready for review and export.',
+      description: `Your stream timetables are ready for review and export. ${selectedPlan === 'payg' ? `Estimated Pay-As-You-Go cost: KES ${generationSnapshot.calculated_price.toLocaleString()}.` : 'This generation is covered by your selected plan.'}`,
     });
   };
 
@@ -764,6 +789,7 @@ const Timetables = () => {
                   <Button
                     size="sm"
                     onClick={handleGenerate}
+                    data-tour-id="tour-timetables-generate"
                     className="h-10 rounded-full px-4 text-sm font-medium"
                   >
                     <Wand2 className="mr-2 h-4 w-4" />
@@ -891,38 +917,27 @@ const Timetables = () => {
           </div>
 
           {streams.length > 0 && (
-            <Card className="mb-4 border-border/70 bg-card/70 p-4">
-              <div className="space-y-4">
-                <div className="text-center">
+          <Card className="mb-4 border-border/70 bg-card/70 p-4">
+            <div className="space-y-4">
+              <div className="text-center">
                   <h3 className="text-lg font-bold text-foreground">Stream Toggles</h3>
                   <p className="text-sm text-muted-foreground">
                     Each stream keeps its own timetable. Toggle between them to review or edit individually.
                   </p>
                 </div>
-                <div className="flex flex-wrap justify-center gap-2" role="tablist" aria-label="Stream toggles">
-                  {streams.map((stream) => {
-                    const isActive = stream.id === activeStreamId;
-                    return (
-                      <button
-                        key={stream.id}
-                        type="button"
-                        onClick={() => setActiveStreamId(stream.id)}
-                        aria-pressed={isActive}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-all ${
-                          isActive
-                            ? 'border-primary bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20'
-                            : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
-                        }`}
-                      >
-                        <span
-                          className={`h-2.5 w-2.5 rounded-full ${
-                            isActive ? 'bg-primary-foreground' : 'bg-muted-foreground/50'
-                          }`}
-                        />
-                        {formatStreamLabel(stream)}
-                      </button>
-                    );
-                  })}
+                <div className="mx-auto max-w-md">
+                  <Select value={activeStreamId || undefined} onValueChange={setActiveStreamId}>
+                    <SelectTrigger className="h-12 rounded-2xl border-border bg-background text-sm font-medium">
+                      <SelectValue placeholder="Select a stream to review" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                      {streams.map((stream) => (
+                        <SelectItem key={stream.id} value={stream.id}>
+                          {formatStreamLabel(stream)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </Card>
@@ -930,7 +945,13 @@ const Timetables = () => {
 
           {timetableContent()}
 
-          <PaymentDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog} />
+          <PaymentDialog
+            open={showPaymentDialog}
+            onOpenChange={setShowPaymentDialog}
+            schoolId={schoolId}
+            schoolName={schoolName}
+            email={schoolEmail}
+          />
 
           <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-4 md:grid-cols-2">
             <DesignSelector
