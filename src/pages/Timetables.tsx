@@ -599,7 +599,14 @@ const Timetables = () => {
     }
     try {
       setIsGenerating(true);
-      await exportTimetableToXls(grid, days, periods, `${schoolName.replace(/\s+/g, '_')}_Timetable_${className}.xlsx`);
+      await exportTimetableToXls(
+        previewGrid,
+        schoolName,
+        className,
+        term,
+        year,
+        periods,
+      );
       toast({ title: 'Exported!', description: 'Downloaded as Excel file.' });
     } catch {
       toast({ title: 'Error', description: 'Excel export failed.', variant: 'destructive' });
