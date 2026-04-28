@@ -24,8 +24,8 @@ interface TimetableGridProps {
 
 export default function TimetableGridComponent({
   grid, days, periods, onCellChange, onPeriodChange, theme = 'classic_kenya', customSubjects = [],
-  colorless = false, rowColors = {}, colColors = {}, onRowColorChange, onColColorChange, viewMode = 'stream',
-  isGenerating = false,
+  colorless = false, rowColors = {}, colColors = {}, onRowColorChange, onColColorChange, onDayDelete, onPeriodDelete,
+  viewMode = 'stream', isGenerating = false,
 }: TimetableGridProps) {
   const t = DESIGN_THEMES[theme];
   const palette = t.palette;
