@@ -790,14 +790,16 @@ const Timetables = () => {
 
             <div className="rounded-[1.75rem] border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm md:p-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div className="flex flex-1 flex-wrap items-center justify-center gap-2 xl:justify-start">
-                  <FontSelector value={fontFamily} onChange={setFontFamily} />
+              <div className="flex flex-1 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:flex-wrap xl:justify-start xl:overflow-visible xl:pb-0">
+                  <div className="shrink-0">
+                    <FontSelector value={fontFamily} onChange={setFontFamily} />
+                  </div>
 
                   <Button
                     size="sm"
                     onClick={handleGenerate}
                     data-tour-id="tour-timetables-generate"
-                    className="h-10 rounded-full px-4 text-sm font-medium"
+                    className="h-10 shrink-0 rounded-full px-4 text-sm font-medium"
                   >
                     <Wand2 className="mr-2 h-4 w-4" />
                     Generate
@@ -807,7 +809,7 @@ const Timetables = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => setPreviewOpen(true)}
-                    className="h-10 rounded-full px-4 text-sm"
+                    className="h-10 shrink-0 rounded-full px-4 text-sm"
                   >
                     <Maximize2 className="mr-2 h-4 w-4" />
                     Preview
@@ -815,7 +817,7 @@ const Timetables = () => {
 
                   <button
                     onClick={() => setViewMode('stream')}
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-all ${
+                    className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-all ${
                       viewMode === 'stream'
                         ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                         : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5'
@@ -826,7 +828,7 @@ const Timetables = () => {
 
                   <button
                     onClick={() => setViewMode('teacher')}
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-all ${
+                    className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-all ${
                       viewMode === 'teacher'
                         ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                         : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5'
@@ -835,7 +837,7 @@ const Timetables = () => {
                     Teacher View
                   </button>
 
-                  <Button variant="outline" size="sm" onClick={handleReset} className="h-10 rounded-full px-4 text-sm">
+                  <Button variant="outline" size="sm" onClick={handleReset} className="h-10 shrink-0 rounded-full px-4 text-sm">
                     <RotateCcw className="mr-2 h-4 w-4" /> Reset
                   </Button>
 
@@ -843,7 +845,7 @@ const Timetables = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => setGuideOpen(true)}
-                    className="h-10 rounded-full px-4 text-sm"
+                    className="h-10 shrink-0 rounded-full px-4 text-sm"
                   >
                     <BookOpenCheck className="mr-2 h-4 w-4" /> Guide
                   </Button>
