@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { TimetableGrid as GridType, CellData, DesignTheme, DESIGN_THEMES, PeriodSlot } from '../lib/timetableData';
 import TimetableCell from './TimetableCell';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, Trash2 } from 'lucide-react';
 
 interface TimetableGridProps {
   grid: GridType;
@@ -16,14 +16,16 @@ interface TimetableGridProps {
   colColors?: Record<number, string>;
   onRowColorChange?: (idx: number, color: string) => void;
   onColColorChange?: (idx: number, color: string) => void;
+  onDayDelete?: (dayIdx: number) => void;
+  onPeriodDelete?: (periodIdx: number) => void;
   viewMode?: 'stream' | 'teacher';
   isGenerating?: boolean;
 }
 
 export default function TimetableGridComponent({
   grid, days, periods, onCellChange, onPeriodChange, theme = 'classic_kenya', customSubjects = [],
-  colorless = false, rowColors = {}, colColors = {}, onRowColorChange, onColColorChange, viewMode = 'stream',
-  isGenerating = false,
+  colorless = false, rowColors = {}, colColors = {}, onRowColorChange, onColColorChange, onDayDelete, onPeriodDelete,
+  viewMode = 'stream', isGenerating = false,
 }: TimetableGridProps) {
   const t = DESIGN_THEMES[theme];
   const palette = t.palette;
@@ -102,7 +104,7 @@ export default function TimetableGridComponent({
                       </div>
                     </div>
                   ) : (
-                    <div 
+                    <div
                       onClick={() => onPeriodChange && setEditingPeriod(editingPeriod === i ? null : i)}
                       className="group flex flex-col items-center justify-center min-h-[30px]"
                     >
@@ -112,6 +114,20 @@ export default function TimetableGridComponent({
                       <div className="font-normal opacity-70 text-[8px] leading-tight uppercase tracking-wider">{period.label}</div>
                       <div className="h-0 group-hover:h-2 opacity-0 group-hover:opacity-100 transition-all text-[8px] text-primary/60 font-bold">CLICK TO EDIT</div>
                     </div>
+                  )}
+                  {onPeriodDelete && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPeriodDelete(i);
+                      }}
+                      className="mt-1 inline-flex items-center justify-center rounded-full border border-destructive/30 bg-destructive/5 px-2 py-1 text-[9px] font-semibold text-destructive transition-colors hover:bg-destructive/10"
+                      title="Delete this column"
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" />
+                      Delete
+                    </button>
                   )}
                   {/* Column paint button */}
                   {colorless && onColColorChange && (
@@ -147,6 +163,20 @@ export default function TimetableGridComponent({
                         className="inline-block w-3 h-2 rounded-sm border border-border"
                         style={{ backgroundColor: rowColors[dayIdx] || 'transparent' }}
                       />
+                    </button>
+                  )}
+                  {onDayDelete && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDayDelete(dayIdx);
+                      }}
+                      className="ml-1 inline-flex items-center justify-center rounded-full border border-destructive/30 bg-destructive/5 px-2 py-1 text-[9px] font-semibold text-destructive transition-colors hover:bg-destructive/10"
+                      title="Delete this row"
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" />
+                      Delete
                     </button>
                   )}
                 </div>

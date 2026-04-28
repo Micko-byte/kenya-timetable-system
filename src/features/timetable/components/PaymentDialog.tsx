@@ -63,6 +63,7 @@ export default function PaymentDialog({ open, onOpenChange, schoolId, schoolName
         callbackUrl: `${window.location.origin}${window.location.pathname}`,
         phone: phone ? normalizeKenyanPhoneNumber(phone) : undefined,
         planType,
+        amount: PAYSTACK_PLANS[planType].amount,
         paymentChannel: phone ? "mobile_money" : "card",
       });
 

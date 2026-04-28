@@ -38,6 +38,7 @@ serve(async (req) => {
     const email = String(payload.email || "");
     const phone = String(payload.phone || "");
     const planType = String(payload.planType || "") as PaystackPlanType;
+    const requestedAmount = Number(payload.amount || 0);
     const paymentChannel = String(payload.paymentChannel || "card") as PaymentChannel;
     const callbackUrl = String(payload.callbackUrl || "");
 
@@ -47,6 +48,14 @@ serve(async (req) => {
 
     if (!(planType in PLAN_AMOUNTS)) {
       throw new Error("Invalid plan type.");
+    }
+
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+      throw new Error("Missing plan amount.");
+    }
+
+    if (requestedAmount !== PLAN_AMOUNTS[planType]) {
+      throw new Error("Plan amount does not match the selected billing plan.");
     }
 
     const safeCallbackUrl = callbackUrl || undefined;
@@ -61,7 +70,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         email,
-        amount: PLAN_AMOUNTS[planType],
+        amount: requestedAmount,
         currency: "KES",
         reference,
         callback_url: safeCallbackUrl,
@@ -91,7 +100,7 @@ serve(async (req) => {
       plan_type: planType,
       payment_channel: paymentChannel,
       status: "pending",
-      amount: PLAN_AMOUNTS[planType],
+      amount: requestedAmount,
       currency: "KES",
       paystack_reference: resolvedReference,
       paystack_access_code: accessCode || null,
@@ -116,7 +125,7 @@ serve(async (req) => {
           reference: resolvedReference,
           access_code: accessCode,
           authorization_url: authorizationUrl,
-          amount: PLAN_AMOUNTS[planType],
+          amount: requestedAmount,
           currency: "KES",
         },
       },

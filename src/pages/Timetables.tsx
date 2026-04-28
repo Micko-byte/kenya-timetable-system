@@ -102,6 +102,8 @@ const formatStreamLabel = (stream: StreamRecord) => `Grade ${stream.grade} - ${s
 
 const normalizeText = (value: string) => value.trim().toLowerCase();
 const slotKey = (dayIdx: number, periodIdx: number) => `${dayIdx}:${periodIdx}`;
+const removeGridRow = (grid: TimetableGrid, rowIdx: number) => grid.filter((_, index) => index !== rowIdx);
+const removeGridColumn = (grid: TimetableGrid, colIdx: number) => grid.map((row) => row.filter((_, index) => index !== colIdx));
 
 function getTeacherLoad(calendar: TeacherCalendar, teacherId: string): TeacherLoad {
   if (!calendar[teacherId]) {
@@ -525,9 +527,73 @@ const Timetables = () => {
   };
 
   const removeDay = (idx: number) => {
-    if (days.length <= 1) return;
-    setDays((prev) => prev.filter((_, index) => index !== idx));
-    setGrid((prev) => prev.filter((_, index) => index !== idx));
+    deleteDayAt(idx);
+  };
+
+  const deleteDayAt = (dayIdx: number) => {
+    if (days.length <= 1) {
+      toast({
+        title: 'Cannot delete',
+        description: 'A timetable needs at least one day.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!window.confirm('Delete this day row from the timetable?')) return;
+
+    setDays((prev) => prev.filter((_, index) => index !== dayIdx));
+    setGrid((prev) => removeGridRow(prev, dayIdx));
+    setStreamGrids((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([streamId, streamGrid]) => [streamId, removeGridRow(streamGrid, dayIdx)]),
+      ),
+    );
+    setMasterData((prev) =>
+      prev
+        ? {
+            ...prev,
+            classes: prev.classes.map((classItem) => ({
+              ...classItem,
+              days: classItem.days.filter((_, index) => index !== dayIdx),
+              grid: removeGridRow(classItem.grid, dayIdx),
+            })),
+          }
+        : prev,
+    );
+  };
+
+  const deletePeriodAt = (periodIdx: number) => {
+    if (periods.length <= 1) {
+      toast({
+        title: 'Cannot delete',
+        description: 'A timetable needs at least one column.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!window.confirm('Delete this time column from the timetable?')) return;
+
+    setPeriods((prev) => prev.filter((_, index) => index !== periodIdx));
+    setGrid((prev) => removeGridColumn(prev, periodIdx));
+    setStreamGrids((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([streamId, streamGrid]) => [streamId, removeGridColumn(streamGrid, periodIdx)]),
+      ),
+    );
+    setMasterData((prev) =>
+      prev
+        ? {
+            ...prev,
+            classes: prev.classes.map((classItem) => ({
+              ...classItem,
+              periods: classItem.periods.filter((_, index) => index !== periodIdx),
+              grid: removeGridColumn(classItem.grid, periodIdx),
+            })),
+          }
+        : prev,
+    );
   };
 
   const handleCellChange = useCallback(
@@ -760,6 +826,8 @@ const Timetables = () => {
           periods={periods}
           onCellChange={handleCellChange}
           onPeriodChange={handlePeriodChange}
+          onDayDelete={deleteDayAt}
+          onPeriodDelete={deletePeriodAt}
           theme={theme}
           customSubjects={customSubjects}
           colorless={colorless}
