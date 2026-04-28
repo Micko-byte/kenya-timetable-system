@@ -25,6 +25,7 @@ import {
 import {
   isValidKenyanMobileMoneyPhone,
   normalizeKenyanPhoneNumber,
+  PAYSTACK_PLANS,
   paystackApi,
   type PaymentChannel,
   type PaystackPlanType,
@@ -172,12 +173,14 @@ const Billing = () => {
     try {
       setCheckingOut(planType);
       const normalizedPhone = paymentChannel === "mobile_money" ? normalizeKenyanPhoneNumber(phone) : phone || undefined;
+      const planAmount = PAYSTACK_PLANS[planType].amount;
 
       const { authorization_url } = await paystackApi.initializePayment({
         schoolId,
         schoolName,
         email: schoolEmail,
         planType,
+        amount: planAmount,
         paymentChannel,
         callbackUrl: `${window.location.origin}/billing`,
         phone: normalizedPhone,

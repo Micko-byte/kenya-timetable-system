@@ -1,34 +1,63 @@
-import { lazy, Suspense } from "react";
+import { Component, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-const Index = lazy(() => import("./pages/Index"));
-const Auth = lazy(() => import("./pages/Auth"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Teachers = lazy(() => import("./pages/Teachers"));
-const Streams = lazy(() => import("./pages/Streams"));
-const Timetables = lazy(() => import("./pages/Timetables"));
-const Billing = lazy(() => import("./pages/Billing"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
-const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
-const AdminSchools = lazy(() => import("./pages/admin/AdminSchools"));
-const AdminSchoolDetail = lazy(() => import("./pages/admin/AdminSchoolDetail"));
-const AdminTemplates = lazy(() => import("./pages/admin/AdminTemplates"));
-const AdminTemplateEditor = lazy(() => import("./pages/admin/AdminTemplateEditor"));
-const AdminTimetables = lazy(() => import("./pages/admin/AdminTimetables"));
-const AdminBilling = lazy(() => import("./pages/admin/AdminBilling"));
+import Index from "./pages/Index";
+import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
+import Teachers from "./pages/Teachers";
+import Streams from "./pages/Streams";
+import Timetables from "./pages/Timetables";
+import Billing from "./pages/Billing";
+import NotFound from "./pages/NotFound";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminSchools from "./pages/admin/AdminSchools";
+import AdminSchoolDetail from "./pages/admin/AdminSchoolDetail";
+import AdminTemplates from "./pages/admin/AdminTemplates";
+import AdminTemplateEditor from "./pages/admin/AdminTemplateEditor";
+import AdminTimetables from "./pages/admin/AdminTimetables";
+import AdminBilling from "./pages/admin/AdminBilling";
 
 const queryClient = new QueryClient();
 
-const RouteFallback = () => (
-  <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-    Loading...
-  </div>
-);
+class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center">
+          <div className="max-w-md space-y-4 rounded-2xl border border-border bg-card p-6 shadow-lg">
+            <h1 className="text-xl font-semibold text-foreground">Something went wrong</h1>
+            <p className="text-sm text-muted-foreground">
+              The app hit a runtime error while loading a page. Refreshing the page usually clears stale chunks or state.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            >
+              Reload app
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const App = () => {
   return (
@@ -37,8 +66,8 @@ const App = () => {
         <Toaster />
         <Sonner />
 
-        <BrowserRouter>
-          <Suspense fallback={<RouteFallback />}>
+        <AppErrorBoundary>
+          <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth isSignUp={false} />} />
@@ -61,8 +90,8 @@ const App = () => {
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </Suspense>
-        </BrowserRouter>
+          </BrowserRouter>
+        </AppErrorBoundary>
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { BILLING_PLANS } from "@/lib/billingPlans";
 
 export type PaystackPlanType = "starter" | "growth" | "international";
 export type PaymentChannel = "card" | "mobile_money";
@@ -14,35 +15,27 @@ export interface PaystackPlan {
 
 export const PAYSTACK_PLANS: Record<PaystackPlanType, PaystackPlan> = {
   starter: {
-    name: "Basic",
-    amount: 50000,
-    period: "per term",
-    description: "A term-based plan for schools within standard staffing limits",
+    name: BILLING_PLANS.starter.name,
+    amount: BILLING_PLANS.starter.amount,
+    period: BILLING_PLANS.starter.period,
+    description: BILLING_PLANS.starter.description,
     features: [
-      "Up to 33 teachers included",
-      "Up to 27 streams included",
-      "Unlimited timetable generations within the term",
+      ...BILLING_PLANS.starter.features,
     ],
   },
   growth: {
-    name: "Legacy Pro",
-    amount: 750000,
-    period: "per term",
-    description: "Legacy plan reserved for existing older billing records",
-    features: ["Legacy pricing support", "Existing account continuity"],
+    name: BILLING_PLANS.growth.name,
+    amount: BILLING_PLANS.growth.amount,
+    period: BILLING_PLANS.growth.period,
+    description: BILLING_PLANS.growth.description,
+    features: [...BILLING_PLANS.growth.features],
   },
   international: {
-    name: "Premium",
-    amount: 249900,
-    period: "per term",
-    description: "Best for larger schools that need unlimited access and upgrades",
-    features: [
-      "Unlimited teachers",
-      "Unlimited streams",
-      "Unlimited timetable generations",
-      "Master timetable access",
-      "Early access to system upgrades",
-    ],
+    name: BILLING_PLANS.international.name,
+    amount: BILLING_PLANS.international.amount,
+    period: BILLING_PLANS.international.period,
+    description: BILLING_PLANS.international.description,
+    features: [...BILLING_PLANS.international.features],
   },
 };
 
@@ -108,6 +101,7 @@ export interface PaystackInitInput {
   schoolName: string;
   email: string;
   planType: PaystackPlanType;
+  amount: number;
   paymentChannel: PaymentChannel;
   callbackUrl?: string;
   phone?: string;
