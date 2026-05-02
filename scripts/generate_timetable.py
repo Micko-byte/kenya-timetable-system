@@ -54,8 +54,10 @@ class Stream:
 class Teacher:
   id: str
   name: str
+  max_lessons_per_week: int
   subjects: list[str]
   assigned_stream_ids: list[str]
+  subject_class_links: list[tuple[str, str]]
 
 
 @dataclass
@@ -101,12 +103,25 @@ def _parse_stream(payload: dict[str, Any]) -> Stream:
 def _parse_teachers(payload: list[dict[str, Any]]) -> list[Teacher]:
   teachers: list[Teacher] = []
   for item in payload:
+    raw_links = item.get("subjectClassLinks") or item.get("subject_class_links") or []
+    subject_class_links: list[tuple[str, str]] = []
+    if isinstance(raw_links, list):
+      for link in raw_links:
+        if not isinstance(link, dict):
+          continue
+        subject = str(link.get("subject") or "").strip()
+        stream_id = str(link.get("streamId") or link.get("stream_id") or "").strip()
+        if subject and stream_id:
+          subject_class_links.append((subject, stream_id))
+
     teachers.append(
       Teacher(
         id=str(item.get("id") or "unassigned"),
         name=str(item.get("name") or "Unassigned Teacher"),
+        max_lessons_per_week=_safe_int(item.get("maxLessonsPerWeek") or item.get("max_lessons_per_week"), 0),
         subjects=[str(subject) for subject in item.get("subjects") or [] if subject],
         assigned_stream_ids=[str(stream_id) for stream_id in item.get("assignedStreamIds") or [] if stream_id],
+        subject_class_links=subject_class_links,
       )
     )
   return teachers
@@ -198,7 +213,7 @@ def _score_candidate(
   calendar: dict[str, TeacherLoad],
 ) -> dict[str, Any] | None:
   load = _teacher_load(calendar, teacher.id)
-  max_lessons = periods_per_day * len(DAY_NAMES)
+  max_lessons = teacher.max_lessons_per_week if teacher.max_lessons_per_week > 0 else float("inf")
   daily_cap = max(1, (periods_per_day + 1) // 2)
   daily_load = load.by_day.get(day_index, 0)
 
@@ -222,16 +237,19 @@ def _choose_teacher(
   periods_per_day: int,
   teachers: list[Teacher],
   calendar: dict[str, TeacherLoad],
-) -> Teacher:
+) -> Teacher | None:
+  normalized_subject = _normalize(subject)
+  normalized_stream_id = _normalize(stream_id)
   exact_matches = [
     teacher for teacher in teachers
-    if subject in teacher.subjects and stream_id in teacher.assigned_stream_ids
+    if any(_normalize(link_subject) == normalized_subject and _normalize(link_stream) == normalized_stream_id for link_subject, link_stream in teacher.subject_class_links)
   ]
   assigned_matches = [
     teacher for teacher in teachers
-    if stream_id in teacher.assigned_stream_ids and subject in teacher.subjects
+    if any(_normalize(stream) == normalized_stream_id for stream in teacher.assigned_stream_ids)
+    and any(_normalize(teacher_subject) == normalized_subject for teacher_subject in teacher.subjects)
   ]
-  general_matches = [teacher for teacher in teachers if subject in teacher.subjects]
+  general_matches = [teacher for teacher in teachers if any(_normalize(teacher_subject) == normalized_subject for teacher_subject in teacher.subjects)]
 
   candidate_ids = _dedupe([teacher.id for teacher in exact_matches + assigned_matches + general_matches])
   scored_candidates: list[dict[str, Any]] = []
@@ -265,12 +283,7 @@ def _choose_teacher(
     chosen = scored_candidates[0] if scored_candidates else None
 
   if chosen is None:
-    return Teacher(
-      id="unassigned",
-      name="Unassigned Teacher",
-      subjects=[],
-      assigned_stream_ids=[],
-    )
+    return None
 
   load = _teacher_load(calendar, chosen["teacher"].id)
   load.slots.add(f"{day_index}:{period_index}")
@@ -301,6 +314,9 @@ def generate_timetable(payload: dict[str, Any]) -> dict[str, Any]:
 
   grid: list[list[dict[str, Any] | None]] = []
   timetable_data: list[dict[str, Any]] = []
+  warnings: list[str] = []
+  teacher_by_id = {teacher.id: teacher for teacher in teachers}
+  teacher_by_name = {teacher.name.strip().lower(): teacher for teacher in teachers if teacher.name.strip()}
 
   for day_index, day_name in enumerate(days, start=1):
     day_row: list[dict[str, Any] | None] = []
@@ -333,8 +349,8 @@ def generate_timetable(payload: dict[str, Any]) -> dict[str, Any]:
         or matched_lesson.get("title")
         or "Untitled"
       )
-      teacher_id = str(matched_lesson.get("teacher_id") or matched_lesson.get("teacherId") or "unassigned")
-      teacher_name = str(matched_lesson.get("teacher_name") or matched_lesson.get("teacherName") or "Unassigned Teacher")
+      teacher_id = str(matched_lesson.get("teacher_id") or matched_lesson.get("teacherId") or "")
+      teacher_name = str(matched_lesson.get("teacher_name") or matched_lesson.get("teacherName") or "")
 
       entry = {
         "id": str(matched_lesson.get("id") or f"{stream.id}-{day_index}-{period_index}"),
@@ -351,17 +367,33 @@ def generate_timetable(payload: dict[str, Any]) -> dict[str, Any]:
         "period_number": _safe_int(matched_lesson.get("period_number"), period_index),
       }
 
-      selected_teacher = _choose_teacher(
-        subject_name,
-        stream.id,
-        day_index,
-        period_index,
-        periods_per_day,
-        teachers,
-        teacher_calendar,
-      )
-      entry["teacher_id"] = selected_teacher.id
-      entry["teacher_name"] = selected_teacher.name
+      if teacher_id and teacher_name:
+        pass
+      elif teacher_id:
+        existing_teacher = teacher_by_id.get(teacher_id)
+        if existing_teacher is not None:
+          entry["teacher_name"] = existing_teacher.name
+      else:
+        matched_teacher = teacher_by_name.get(teacher_name.strip().lower()) if teacher_name else None
+        if matched_teacher is not None:
+          entry["teacher_id"] = matched_teacher.id
+        else:
+          selected_teacher = _choose_teacher(
+            subject_name,
+            stream.id,
+            day_index,
+            period_index,
+            periods_per_day,
+            teachers,
+            teacher_calendar,
+          )
+      if not entry["teacher_id"] and not entry["teacher_name"] and selected_teacher is not None:
+        entry["teacher_id"] = selected_teacher.id
+        entry["teacher_name"] = selected_teacher.name
+      elif not entry["teacher_id"] and not entry["teacher_name"]:
+        entry["teacher_id"] = ""
+        entry["teacher_name"] = ""
+        warnings.append(f"No valid teacher found for {day_name} {period.get('label') or period_index} in stream {stream.id}")
 
       day_row.append(entry)
       timetable_data.append(entry)
@@ -376,6 +408,7 @@ def generate_timetable(payload: dict[str, Any]) -> dict[str, Any]:
     "periods": periods,
     "grid": grid,
     "timetable_data": timetable_data,
+    "warnings": warnings,
     "teachers": [
       {
         "id": teacher.id,

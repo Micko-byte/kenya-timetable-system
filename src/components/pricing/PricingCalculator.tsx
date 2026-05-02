@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,6 +98,8 @@ const formatPrice = (value: number) => `KES ${value.toLocaleString()}`;
 interface PricingCalculatorProps {
   onSelectPlan: (planType: FrontendPlanType, snapshot: PricingSnapshot) => void;
   currentPlan?: FrontendPlanType | null;
+  defaultTeacherCount?: number;
+  defaultStreamCount?: number;
   getPlanAction?: (
     planType: FrontendPlanType,
     snapshot: PricingSnapshot,
@@ -109,9 +111,23 @@ interface PricingCalculatorProps {
   };
 }
 
-export const PricingCalculator = ({ onSelectPlan, currentPlan, getPlanAction }: PricingCalculatorProps) => {
-  const [teachers, setTeachers] = useState("0");
-  const [streams, setStreams] = useState("0");
+export const PricingCalculator = ({
+  onSelectPlan,
+  currentPlan,
+  defaultTeacherCount = 0,
+  defaultStreamCount = 0,
+  getPlanAction,
+}: PricingCalculatorProps) => {
+  const [teachers, setTeachers] = useState(String(defaultTeacherCount));
+  const [streams, setStreams] = useState(String(defaultStreamCount));
+
+  useEffect(() => {
+    setTeachers(String(defaultTeacherCount));
+  }, [defaultTeacherCount]);
+
+  useEffect(() => {
+    setStreams(String(defaultStreamCount));
+  }, [defaultStreamCount]);
 
   const teacherCount = normalizeCount(teachers);
   const streamCount = normalizeCount(streams);
@@ -136,6 +152,32 @@ export const PricingCalculator = ({ onSelectPlan, currentPlan, getPlanAction }: 
 
   return (
     <div className="space-y-8">
+      <div className="mx-auto max-w-3xl rounded-[2rem] border border-primary/10 bg-white/90 px-5 py-4 shadow-[0_18px_45px_rgba(1,16,39,0.06)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Live pricing</p>
+            <h3 className="mt-1 text-2xl font-bold text-foreground">
+              {currentPlan === "payg" ? "Pay-As-You-Go" : currentPlan === "basic" ? "Basic plan" : currentPlan === "premium" ? "Premium plan" : "Pay-As-You-Go"}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Based on {teacherCount} teacher{teacherCount === 1 ? "" : "s"} and {streamCount} stream{streamCount === 1 ? "" : "s"}.
+            </p>
+          </div>
+          <div className="text-left sm:text-right">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Real price</p>
+            <p className="text-4xl font-black text-primary">
+              {formatPrice(
+                currentPlan === "basic"
+                  ? pricing.basicPrice
+                  : currentPlan === "premium"
+                    ? pricing.premiumPrice
+                    : pricing.paygPrice,
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="mx-auto max-w-3xl space-y-4 text-center">
         <h3 className="text-2xl font-bold text-foreground">Estimated cost based on your inputs</h3>
         <p className="text-sm text-muted-foreground">

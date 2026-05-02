@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +30,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 import PaymentDialog from '@/features/timetable/components/PaymentDialog';
 import {
   buildPricingSnapshot,
+  hasRecordedPlanGeneration,
   getSelectedFrontendPlan,
   recordPlanGeneration,
 } from '@/lib/planSelection';
@@ -310,7 +311,9 @@ const Timetables = () => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showGenerationPricingPopup, setShowGenerationPricingPopup] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
+  const [generationLocked, setGenerationLocked] = useState(false);
   const [streams, setStreams] = useState<StreamRecord[]>([]);
   const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
   const [schoolId, setSchoolId] = useState('');
@@ -321,6 +324,11 @@ const Timetables = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [showLevelScrollCue, setShowLevelScrollCue] = useState(false);
   const levelScrollRef = useRef<HTMLDivElement | null>(null);
+  const selectedGenerationPlan = getSelectedFrontendPlan(schoolId) || 'payg';
+  const generationPricing = useMemo(
+    () => buildPricingSnapshot(selectedGenerationPlan, teachers.length, streams.length),
+    [selectedGenerationPlan, streams.length, teachers.length],
+  );
 
   useEffect(() => {
     const fetchUserSchool = async () => {
@@ -397,6 +405,7 @@ const Timetables = () => {
       setTeachers(formattedTeachers);
       setIsSubscribed(subData?.status === 'active');
       setUsageCount(count || 0);
+      setGenerationLocked(hasRecordedPlanGeneration(profile.school_id));
 
       if ((streamsData || []).length > 0) {
         const initialStream = (streamsData || [])[0] as StreamRecord;
@@ -508,6 +517,15 @@ const Timetables = () => {
   }, []);
 
   const switchLevel = (level: ActiveLevel) => {
+    if (generationLocked) {
+      toast({
+        title: 'Timetable locked',
+        description: 'The first generated timetable is final, so the level cannot be changed now.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const info = LEVELS.find((item) => item.key === level)!;
     setActiveLevel(level);
     setClassName(info.defaultClass);
@@ -712,6 +730,15 @@ const Timetables = () => {
   };
 
   const handleReset = () => {
+    if (generationLocked) {
+      toast({
+        title: 'Timetable locked',
+        description: 'The first generated timetable is final, so reset is disabled.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const newPeriods = [...LEVEL_PERIODS[activeLevel]];
     setPeriods(newPeriods);
     setDays([...DEFAULT_DAYS]);
@@ -733,6 +760,15 @@ const Timetables = () => {
   };
 
   const handleGenerate = () => {
+    if (generationLocked) {
+      toast({
+        title: 'Timetable locked',
+        description: 'You have already generated the final timetable for this school.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (streams.length === 0) {
       toast({
         title: 'No streams yet',
@@ -742,11 +778,16 @@ const Timetables = () => {
       return;
     }
 
+    setShowGenerationPricingPopup(true);
+  };
+
+  const confirmGenerate = () => {
     setIsGenerating(true);
     const generated = buildGeneratedState();
 
     if (!generated) {
       setIsGenerating(false);
+      setShowGenerationPricingPopup(false);
       return;
     }
 
@@ -765,6 +806,8 @@ const Timetables = () => {
     const selectedPlan = getSelectedFrontendPlan(schoolId) || 'payg';
     const generationSnapshot = buildPricingSnapshot(selectedPlan, teachers.length, streams.length);
     recordPlanGeneration(generationSnapshot, schoolId);
+    setGenerationLocked(true);
+    setShowGenerationPricingPopup(false);
     if (schoolId) {
       advanceSchoolOnboardingTour(schoolId);
     }
@@ -866,11 +909,12 @@ const Timetables = () => {
                   <Button
                     size="sm"
                     onClick={handleGenerate}
+                    disabled={generationLocked}
                     data-tour-id="tour-timetables-generate"
                     className="h-10 shrink-0 rounded-full px-4 text-sm font-medium"
                   >
                     <Wand2 className="mr-2 h-4 w-4" />
-                    Generate
+                    {generationLocked ? 'Finalized' : 'Generate'}
                   </Button>
 
                   <Button
@@ -905,7 +949,13 @@ const Timetables = () => {
                     Teacher View
                   </button>
 
-                  <Button variant="outline" size="sm" onClick={handleReset} className="h-10 shrink-0 rounded-full px-4 text-sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleReset}
+                    disabled={generationLocked}
+                    className="h-10 shrink-0 rounded-full px-4 text-sm"
+                  >
                     <RotateCcw className="mr-2 h-4 w-4" /> Reset
                   </Button>
 
@@ -961,11 +1011,12 @@ const Timetables = () => {
                     <button
                       key={key}
                       onClick={() => switchLevel(key)}
+                      disabled={generationLocked}
                       className={`relative min-w-[190px] overflow-hidden rounded-lg border text-left transition-all duration-200 ${
                         isActive
                           ? 'border-primary bg-primary/5 shadow-sm'
                           : 'border-border hover:border-primary/40 hover:bg-muted/50'
-                      }`}
+                      } ${generationLocked ? 'cursor-not-allowed opacity-60' : ''}`}
                     >
                       <div className={`absolute inset-y-0 left-0 w-2 ${LEVEL_ACCENTS[key]}`} />
                       <div className="px-5 py-4">
@@ -1029,6 +1080,64 @@ const Timetables = () => {
             schoolName={schoolName}
             email={schoolEmail}
           />
+
+          <Dialog open={showGenerationPricingPopup} onOpenChange={setShowGenerationPricingPopup}>
+            <DialogContent className="max-w-2xl rounded-[2rem] border-primary/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.99),rgba(248,250,255,0.96))] p-0 shadow-2xl">
+              <div className="border-b border-border/60 px-6 py-5">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-bold">Review timetable pricing</DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    This price is based on your current school size and selected billing plan. The first generated timetable becomes final.
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="space-y-4 px-6 py-6">
+                <div className="rounded-[1.5rem] border border-primary/10 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Selected plan</p>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-foreground">
+                        {selectedGenerationPlan === 'payg' ? 'Pay-As-You-Go' : selectedGenerationPlan === 'basic' ? 'Basic' : 'Premium'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Based on {teachers.length} teacher{teachers.length === 1 ? '' : 's'} and {streams.length} stream{streams.length === 1 ? '' : 's'}.
+                      </p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Real price</p>
+                      <p className="text-4xl font-black text-primary">
+                        {`KES ${generationPricing.calculated_price.toLocaleString()}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Teachers</p>
+                    <p className="mt-1 text-xl font-bold">{teachers.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Streams</p>
+                    <p className="mt-1 text-xl font-bold">{streams.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Plan total</p>
+                    <p className="mt-1 text-xl font-bold">{`KES ${generationPricing.calculated_price.toLocaleString()}`}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-end">
+                  <Button variant="outline" onClick={() => setShowGenerationPricingPopup(false)} className="rounded-full px-5">
+                    Cancel
+                  </Button>
+                  <Button onClick={confirmGenerate} className="rounded-full px-6">
+                    Continue and Generate
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-4 md:grid-cols-2">
             <DesignSelector

@@ -198,3 +198,16 @@ export function recordPlanGeneration(snapshot: PricingSnapshot, schoolId?: strin
     window.localStorage.setItem(getSchoolGenerationKey(schoolId), serialized);
   }
 }
+
+export function hasRecordedPlanGeneration(schoolId?: string | null) {
+  if (!canUseStorage()) {
+    return false;
+  }
+
+  const schoolGeneration = schoolId ? window.localStorage.getItem(getSchoolGenerationKey(schoolId)) : null;
+  if (schoolGeneration) {
+    return true;
+  }
+
+  return Boolean(window.localStorage.getItem(PENDING_GENERATION_KEY));
+}

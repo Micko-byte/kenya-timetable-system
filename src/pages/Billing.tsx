@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { BILLING_PLANS, type BillingPlanType } from "@/lib/billingPlans";
 import {
+  buildPricingSnapshot,
   mapSubscriptionPlanToFrontendPlan,
   setSelectedFrontendPlan,
   type FrontendPlanType,
@@ -60,6 +61,8 @@ const Billing = () => {
   const [schoolName, setSchoolName] = useState("");
   const [schoolEmail, setSchoolEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [teacherCount, setTeacherCount] = useState(0);
+  const [streamCount, setStreamCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState<PaystackPlanType | null>(null);
   const [verifyingReference, setVerifyingReference] = useState<string | null>(null);
@@ -95,6 +98,10 @@ const Billing = () => {
     () => mapSubscriptionPlanToFrontendPlan(subscription?.plan_type),
     [subscription?.plan_type],
   );
+  const pricingSnapshot = useMemo(
+    () => buildPricingSnapshot(currentFrontendPlan || "payg", teacherCount, streamCount),
+    [currentFrontendPlan, streamCount, teacherCount],
+  );
 
   const fetchSubscription = async () => {
     setLoading(true);
@@ -120,7 +127,7 @@ const Billing = () => {
       setSchoolId(profile.school_id);
       setSchoolEmail(user.email || "");
 
-      const [{ data: schoolData }, { data: subData }, { data: activityData }] = await Promise.all([
+      const [{ data: schoolData }, { data: subData }, { data: activityData }, { count: teachersTotal }, { count: streamsTotal }] = await Promise.all([
         supabase.from("schools").select("name").eq("id", profile.school_id).single(),
         supabase.from("subscriptions").select("*").eq("school_id", profile.school_id).single(),
         supabase
@@ -130,11 +137,15 @@ const Billing = () => {
           .eq("activity_type", "payment")
           .order("created_at", { ascending: false })
           .limit(6),
+        supabase.from("teachers").select("*", { count: "exact", head: true }).eq("school_id", profile.school_id),
+        supabase.from("streams").select("*", { count: "exact", head: true }).eq("school_id", profile.school_id),
       ]);
 
       setSchoolName(schoolData?.name || "ElimuTime School");
       setSubscription(subData);
       setHistory((activityData || []) as PaymentLog[]);
+      setTeacherCount(teachersTotal || 0);
+      setStreamCount(streamsTotal || 0);
     } catch (error: any) {
       toast.error(error.message || "Failed to load billing details");
     } finally {
@@ -281,6 +292,35 @@ const Billing = () => {
         )}
 
         <Card className="rounded-[2rem] border-primary/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,250,255,0.94))] p-6 shadow-[0_18px_45px_rgba(1,16,39,0.06)]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Live Paystack pricing</p>
+              <h2 className="text-2xl font-bold text-foreground">
+                {currentFrontendPlan === "payg"
+                  ? "Pay-As-You-Go"
+                  : currentFrontendPlan === "basic"
+                    ? "Basic"
+                    : currentFrontendPlan === "premium"
+                      ? "Premium"
+                      : "Pay-As-You-Go"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Calculated from {teacherCount} teacher{teacherCount === 1 ? "" : "s"} and {streamCount} stream{streamCount === 1 ? "" : "s"}.
+              </p>
+            </div>
+            <div className="text-left sm:text-right">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Real price at a glance</p>
+              <p className="text-4xl font-black text-primary">{`KES ${pricingSnapshot.calculated_price.toLocaleString()}`}</p>
+              <p className="text-xs text-muted-foreground">
+                {currentFrontendPlan === "payg"
+                  ? "Charged per timetable generation."
+                  : "Displayed using the same Paystack-backed pricing logic."}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="rounded-[2rem] border-primary/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,250,255,0.94))] p-6 shadow-[0_18px_45px_rgba(1,16,39,0.06)]">
           <div className="mb-5 space-y-1">
             <h2 className="text-xl font-bold text-foreground">Payment setup</h2>
             <p className="text-sm text-muted-foreground">
@@ -326,6 +366,8 @@ const Billing = () => {
           showHeading={false}
           compact
           currentPlan={currentFrontendPlan}
+          defaultTeacherCount={teacherCount}
+          defaultStreamCount={streamCount}
           onSelectPlan={handleBillingPlanSelect}
           getPlanAction={getBillingPlanAction}
           className="bg-transparent"

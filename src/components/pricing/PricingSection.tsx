@@ -9,6 +9,8 @@ interface PricingSectionProps {
   className?: string;
   compact?: boolean;
   currentPlan?: FrontendPlanType | null;
+  defaultTeacherCount?: number;
+  defaultStreamCount?: number;
   getPlanAction?: (
     planType: FrontendPlanType,
     snapshot: PricingSnapshot,
@@ -27,6 +29,8 @@ export const PricingSection = ({
   className,
   compact = false,
   currentPlan,
+  defaultTeacherCount,
+  defaultStreamCount,
   getPlanAction,
 }: PricingSectionProps) => {
   return (
@@ -53,7 +57,13 @@ export const PricingSection = ({
           </div>
         )}
 
-        <PricingCalculator onSelectPlan={onSelectPlan} currentPlan={currentPlan} getPlanAction={getPlanAction} />
+        <PricingCalculator
+          onSelectPlan={onSelectPlan}
+          currentPlan={currentPlan}
+          defaultTeacherCount={defaultTeacherCount}
+          defaultStreamCount={defaultStreamCount}
+          getPlanAction={getPlanAction}
+        />
       </div>
     </section>
   );
