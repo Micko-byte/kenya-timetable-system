@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { paystackApi } from '@/lib/paystack';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -211,86 +213,208 @@ function pickTeacherForSubject(
   return '';
 }
 
+// Approximate weekly lesson weighting for Kenyan curriculum subjects. Higher =
+// more periods per week. Unknown subjects fall back to DEFAULT_SUBJECT_WEIGHT.
+const DEFAULT_SUBJECT_WEIGHT = 3;
+const SUBJECT_WEIGHTS: Array<{ match: RegExp; weight: number }> = [
+  { match: /(^|\b)(math|mathematics|pure math|applied math|number work|counting)/, weight: 6 },
+  { match: /(english|kiswahili|language activities|literacy|listening|reading|writing)/, weight: 5 },
+  { match: /(integrated science|biology|chemistry|physics|science|environmental)/, weight: 4 },
+  { match: /(history|geography|social studies|cre|ire|hre|religious)/, weight: 3 },
+  { match: /(business|agriculture|computer|ict|home science|pre-technical|technology|electrical|mechanic)/, weight: 3 },
+  { match: /(french|german|arabic|mandarin|kenyan sign|indigenous)/, weight: 2 },
+  { match: /(music|art|creative|drama|dance|physical|games|\bpe\b|life skills|health|community|moral|character|outdoor|story)/, weight: 1 },
+];
+
+function getSubjectWeight(subject: string): number {
+  const normalized = normalizeText(subject);
+  for (const { match, weight } of SUBJECT_WEIGHTS) {
+    if (match.test(normalized)) return weight;
+  }
+  return DEFAULT_SUBJECT_WEIGHT;
+}
+
+// Distribute `slotCount` teaching slots across `subjects` proportionally to each
+// subject's weekly weight, using largest-remainder so counts sum exactly to
+// slotCount. Every subject gets at least 1 when there is room.
+// Distribute `slotCount` teaching slots across `subjects`, weighted by each
+// subject's weekly weight and capped at `maxPerSubject` (default = once per day)
+// so no subject is *forced* to repeat within a day. A greedy lowest-load/weight
+// fill keeps the spread proportional while every staffed subject appears at least
+// once when there's room.
+function computeSubjectQuotas(
+  subjects: string[],
+  slotCount: number,
+  maxPerSubject = Number.POSITIVE_INFINITY,
+): Record<string, number> {
+  const quotas: Record<string, number> = {};
+  if (subjects.length === 0 || slotCount <= 0) return quotas;
+
+  const weight: Record<string, number> = {};
+  subjects.forEach((subject) => {
+    quotas[subject] = 0;
+    weight[subject] = getSubjectWeight(subject);
+  });
+
+  const cap = Math.max(1, maxPerSubject);
+  const target = Math.min(slotCount, subjects.length * cap);
+  const totalAssigned = () => Object.values(quotas).reduce((sum, n) => sum + n, 0);
+
+  // One each (highest weight first) so every staffed subject shows up at least once.
+  [...subjects]
+    .sort((a, b) => weight[b] - weight[a])
+    .forEach((subject) => {
+      if (totalAssigned() < target && quotas[subject] < cap) quotas[subject] = 1;
+    });
+
+  // Fill the remainder by lowest load-to-weight ratio, never exceeding the cap.
+  while (totalAssigned() < target) {
+    let best: string | null = null;
+    let bestRatio = Number.POSITIVE_INFINITY;
+    let bestWeight = -1;
+    for (const subject of subjects) {
+      if (quotas[subject] >= cap) continue;
+      const ratio = quotas[subject] / weight[subject];
+      if (ratio < bestRatio - 1e-9 || (Math.abs(ratio - bestRatio) < 1e-9 && weight[subject] > bestWeight)) {
+        bestRatio = ratio;
+        bestWeight = weight[subject];
+        best = subject;
+      }
+    }
+    if (best === null) break;
+    quotas[best] += 1;
+  }
+
+  return quotas;
+}
+
+// BREAK / LUNCH / Games / outdoor slots are fixed and never receive a subject.
+function getFixedPeriodCell(period: PeriodSlot): CellData | null {
+  const label = period.label.toUpperCase();
+  if (label === 'BREAK') return { subject: 'BREAK', teacher: '' };
+  if (label === 'LUNCH') return { subject: 'LUNCH', teacher: '' };
+  if (label.includes('GAME') || label.includes('OUTDOOR') || label.includes('FREE PLAY')) {
+    return { subject: period.label, teacher: '' };
+  }
+  return null;
+}
+
 function buildStreamGrid(
   stream: StreamRecord,
   teachers: TeacherRecord[],
+  days: string[],
   periods: PeriodSlot[],
   activeLevel: ActiveLevel,
   teacherCalendar: TeacherCalendar,
 ): TimetableGrid {
-  const levelSubjects = getSubjectsByLevel(activeLevel).filter(
-    (subject) => !['BREAK', 'LUNCH', 'Games', 'Physical Education'].includes(subject),
+  // Only ever place subjects a real teacher can teach — never inject curriculum
+  // subjects the school has no staff for. Prefer subjects explicitly linked to
+  // this stream, then subjects of teachers assigned to it, then any teacher's
+  // subjects as a last resort.
+  const linkedSubjects = teachers.flatMap((teacher) =>
+    teacher.subjectClassLinks
+      .filter((link) => link.streamId === stream.id)
+      .map((link) => link.subject),
   );
+  const assignedTeacherSubjects = teachers.flatMap((teacher) =>
+    teacher.assignedStreamIds.includes(stream.id) ? teacher.subjects : [],
+  );
+  const generalTeacherSubjects = teachers.flatMap((teacher) => teacher.subjects);
 
-  const linkedSubjects = Array.from(
-    new Set(
-      teachers.flatMap((teacher) =>
-        teacher.subjectClassLinks
-          .filter((link) => link.streamId === stream.id)
-          .map((link) => link.subject),
-      ),
-    ),
-  ).filter(Boolean);
+  const subjectSource =
+    linkedSubjects.length > 0
+      ? linkedSubjects
+      : assignedTeacherSubjects.length > 0
+        ? assignedTeacherSubjects
+        : generalTeacherSubjects;
+  const subjectPool = Array.from(new Set(subjectSource.filter(Boolean)));
 
-  const assignedTeacherSubjects = Array.from(
-    new Set(
-      teachers.flatMap((teacher) => (teacher.assignedStreamIds.includes(stream.id) ? teacher.subjects : [])),
-    ),
-  ).filter(Boolean);
+  // Start from a correctly-sized blank grid (honors the configured days).
+  const grid: TimetableGrid = days.map(() => periods.map(() => ({ subject: '', teacher: '' })));
 
-  const subjectPool = linkedSubjects.length > 0
-    ? linkedSubjects
-    : assignedTeacherSubjects.length > 0
-      ? assignedTeacherSubjects
-      : levelSubjects;
+  // Lay down fixed cells and collect the real teaching slots.
+  const teachingSlots: Array<{ dayIdx: number; periodIdx: number }> = [];
+  days.forEach((_, dayIdx) => {
+    periods.forEach((period, periodIdx) => {
+      const fixed = getFixedPeriodCell(period);
+      if (fixed) {
+        grid[dayIdx][periodIdx] = fixed;
+      } else {
+        teachingSlots.push({ dayIdx, periodIdx });
+      }
+    });
+  });
 
-  if (subjectPool.length === 0) {
-    return DEFAULT_DAYS.map(() => periods.map(() => ({ subject: '', teacher: '' })));
+  if (subjectPool.length === 0 || teachingSlots.length === 0) {
+    return grid;
   }
 
-  return DEFAULT_DAYS.map((_, dayIdx) =>
-    periods.map((period, periodIdx) => {
-      const label = period.label.toUpperCase();
-      if (label === 'BREAK') return { subject: 'BREAK', teacher: '' };
-      if (label === 'LUNCH') return { subject: 'LUNCH', teacher: '' };
-      if (label.includes('GAME') || label.includes('OUTDOOR') || label.includes('FREE PLAY')) {
-        return { subject: period.label, teacher: '' };
-      }
+  // Cap each subject at once per day so quotas never force a same-day repeat.
+  const remaining = computeSubjectQuotas(subjectPool, teachingSlots.length, days.length);
+  const placedToday: Array<Set<string>> = days.map(() => new Set<string>());
 
-      const startIndex = (dayIdx * periods.length + periodIdx) % subjectPool.length;
-      for (let offset = 0; offset < subjectPool.length; offset += 1) {
-        const subject = subjectPool[(startIndex + offset) % subjectPool.length];
+  // Visit slots column-major (across days first) so each subject's lessons
+  // spread over different days rather than clustering on one day.
+  const orderedSlots = [...teachingSlots].sort(
+    (a, b) => a.periodIdx - b.periodIdx || a.dayIdx - b.dayIdx,
+  );
+
+  const byPreference = (a: string, b: string) =>
+    (remaining[b] || 0) - (remaining[a] || 0) || getSubjectWeight(b) - getSubjectWeight(a);
+
+  // Only allow a same-day repeat when the school simply doesn't have enough
+  // distinct staffed subjects to fill a day without one. Otherwise a slot that
+  // can't be staffed with a fresh subject is left blank rather than repeating.
+  const teachingPerDay = Math.ceil(teachingSlots.length / Math.max(1, days.length));
+  const allowRepeatFallback = subjectPool.length < teachingPerDay;
+
+  orderedSlots.forEach(({ dayIdx, periodIdx }) => {
+    const remainingSubjects = subjectPool.filter((subject) => (remaining[subject] || 0) > 0);
+    if (remainingSubjects.length === 0) return; // quotas spent → leave blank
+
+    // Pass 1: only subjects NOT already placed today (hard no same-day repeat).
+    // Pass 2 (under-staffed schools only): any remaining subject, so a day with
+    // too few subjects still fills instead of leaving large gaps.
+    const fresh = remainingSubjects.filter((subject) => !placedToday[dayIdx].has(subject));
+    const passes = allowRepeatFallback ? [fresh, remainingSubjects] : [fresh];
+    for (const pool of passes) {
+      for (const subject of [...pool].sort(byPreference)) {
         const teacher = pickTeacherForSubject(
-          teachers,
-          stream,
-          subject,
-          dayIdx,
-          periodIdx,
-          periods.length,
-          teacherCalendar,
+          teachers, stream, subject, dayIdx, periodIdx, periods.length, teacherCalendar,
         );
         if (teacher) {
-          return { subject, teacher };
+          grid[dayIdx][periodIdx] = { subject, teacher };
+          remaining[subject] -= 1;
+          placedToday[dayIdx].add(subject);
+          return;
         }
       }
+    }
+    // No staffable subject for this slot → leave it blank.
+  });
 
-      return { subject: '', teacher: '' };
-    }),
-  );
+  return grid;
 }
 
-function buildAllStreamGrids(streams: StreamRecord[], teachers: TeacherRecord[], periods: PeriodSlot[]) {
+function buildAllStreamGrids(
+  streams: StreamRecord[],
+  teachers: TeacherRecord[],
+  days: string[],
+  periods: PeriodSlot[],
+) {
   const teacherCalendar: TeacherCalendar = {};
   const orderedStreams = [...streams].sort((a, b) => a.grade - b.grade || a.stream_name.localeCompare(b.stream_name));
 
   return orderedStreams.reduce<Record<string, TimetableGrid>>((acc, stream) => {
-    acc[stream.id] = buildStreamGrid(stream, teachers, periods, gradeToLevel(stream.grade), teacherCalendar);
+    acc[stream.id] = buildStreamGrid(stream, teachers, days, periods, gradeToLevel(stream.grade), teacherCalendar);
     return acc;
   }, {});
 }
 
 const Timetables = () => {
   const { toast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeLevel, setActiveLevel] = useState<ActiveLevel>('eight_four_four');
   const [schoolName, setSchoolName] = useState('Brightstone Schools Secondary');
   const [fontFamily, setFontFamily] = useState(FONT_OPTIONS[0].value);
@@ -421,7 +545,7 @@ const Timetables = () => {
       return;
     }
 
-    const nextStreamGrids = buildAllStreamGrids(streams, teachers, periods);
+    const nextStreamGrids = buildAllStreamGrids(streams, teachers, days, periods);
     const nextActiveStreamId = activeStreamId || streams[0]?.id || null;
     const nextActiveStream = streams.find((stream) => stream.id === nextActiveStreamId) || streams[0];
 
@@ -439,8 +563,8 @@ const Timetables = () => {
       classes: streams.map((stream) => ({
         name: formatStreamLabel(stream),
         level: gradeToLevel(stream.grade),
-        grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, periods, gradeToLevel(stream.grade), {}),
-        days: [...DEFAULT_DAYS],
+        grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, days, periods, gradeToLevel(stream.grade), {}),
+        days: [...days],
         periods,
       })),
     });
@@ -448,7 +572,7 @@ const Timetables = () => {
     if (!selectedTeacher && teachers.length > 0) {
       setSelectedTeacher(teachers[0].name);
     }
-  }, [streams, teachers, periods, activeStreamId, schoolName, term, year, selectedTeacher]);
+  }, [streams, teachers, days, periods, activeStreamId, schoolName, term, year, selectedTeacher]);
 
   const buildGeneratedState = useCallback(
     (nextPeriods: PeriodSlot[] = periods) => {
@@ -456,7 +580,7 @@ const Timetables = () => {
         return null;
       }
 
-      const nextStreamGrids = buildAllStreamGrids(streams, teachers, nextPeriods);
+      const nextStreamGrids = buildAllStreamGrids(streams, teachers, days, nextPeriods);
       const nextActiveStreamId = activeStreamId || streams[0]?.id || null;
       const nextActiveStream = streams.find((stream) => stream.id === nextActiveStreamId) || streams[0];
 
@@ -474,14 +598,14 @@ const Timetables = () => {
           classes: streams.map((stream) => ({
             name: formatStreamLabel(stream),
             level: gradeToLevel(stream.grade),
-            grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, nextPeriods, gradeToLevel(stream.grade), {}),
-            days: [...DEFAULT_DAYS],
+            grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, days, nextPeriods, gradeToLevel(stream.grade), {}),
+            days: [...days],
             periods: nextPeriods,
           })),
         } satisfies MasterTimetable,
       };
     },
-    [activeLevel, activeStreamId, periods, schoolName, streams, teachers, term, year],
+    [activeLevel, activeStreamId, days, periods, schoolName, streams, teachers, term, year],
   );
 
   useEffect(() => {
@@ -819,6 +943,46 @@ const Timetables = () => {
     });
   };
 
+  const handlePaymentVerified = useCallback(async () => {
+    // Optimistically unlock, then reconcile with the server's subscription row.
+    setIsSubscribed(true);
+    if (!schoolId) return;
+    const { data } = await supabase
+      .from('subscriptions')
+      .select('status')
+      .eq('school_id', schoolId)
+      .maybeSingle();
+    if (data) {
+      setIsSubscribed(data.status === 'active');
+    }
+  }, [schoolId]);
+
+  // Safety net: if Paystack redirects back here with ?reference= (instead of the
+  // inline popup callback firing), verify and activate on return.
+  useEffect(() => {
+    const reference = new URLSearchParams(location.search).get('reference');
+    if (!reference) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await paystackApi.verifyPayment(reference);
+        if (!cancelled && (result.subscription_status === 'active' || result.status === 'success')) {
+          toast({ title: 'Subscription activated 🎉', description: 'Payment verified successfully.' });
+          await handlePaymentVerified();
+        }
+      } catch {
+        // Ignore — Billing also surfaces verification issues; avoid double-toasting here.
+      } finally {
+        navigate(location.pathname, { replace: true });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search, location.pathname, navigate, toast, handlePaymentVerified]);
+
   const previewGrid =
     viewMode === 'teacher' && masterData && selectedTeacher
       ? aggregateTeacherTimetable(masterData, selectedTeacher).grid
@@ -1079,6 +1243,7 @@ const Timetables = () => {
             schoolId={schoolId}
             schoolName={schoolName}
             email={schoolEmail}
+            onPaymentVerified={handlePaymentVerified}
           />
 
           <Dialog open={showGenerationPricingPopup} onOpenChange={setShowGenerationPricingPopup}>

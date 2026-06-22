@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
@@ -28,10 +29,7 @@ interface Teacher {
 
 const Teachers = () => {
   const navigate = useNavigate();
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [streams, setStreams] = useState<any[]>([]);
-  const [schoolId, setSchoolId] = useState<string>("");
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -43,41 +41,33 @@ const Teachers = () => {
   });
   const [newSubject, setNewSubject] = useState("");
 
-  useEffect(() => {
-    fetchData();
-  }, [navigate]);
+  const { data, isLoading } = useQuery({
+    queryKey: ["teachers-page"],
+    queryFn: async () => {
+      const session = await getCurrentSchoolSession();
+      if (!session) return null;
+      const schoolId = session.schoolId;
 
-  const fetchData = async () => {
-    const session = await getCurrentSchoolSession();
-    if (!session) {
-      navigate("/auth");
-      return;
-    }
+      // Fetch subjects, streams and teachers in parallel instead of in series.
+      const [subjectsRes, streamsRes, teachersRes] = await Promise.all([
+        supabase.from("subjects").select("*").eq("school_id", schoolId),
+        supabase.from("streams").select("*").eq("school_id", schoolId),
+        supabase
+          .from("teachers")
+          .select(`
+              *,
+              teacher_subjects(subject_id, subjects(name)),
+              teacher_subject_classes(subject_id, stream_id, subjects(name), streams(id, grade, stream_name))
+            `)
+          .eq("school_id", schoolId),
+      ]);
 
-    setSchoolId(session.schoolId);
-
-    const { data: subjectsData } = await supabase.from("subjects").select("*").eq("school_id", session.schoolId);
-    const { data: streamsData } = await supabase.from("streams").select("*").eq("school_id", session.schoolId);
-
-    setSubjects(subjectsData || []);
-    setStreams(streamsData || []);
-
-    const { data: teachersData } = await supabase
-      .from("teachers")
-      .select(`
-          *,
-          teacher_subjects(subject_id, subjects(name)),
-          teacher_subject_classes(subject_id, stream_id, subjects(name), streams(id, grade, stream_name))
-        `)
-        .eq("school_id", session.schoolId);
-
-    if (teachersData) {
-      const formattedTeachers = teachersData.map((teacher: any) => ({
+      const formattedTeachers: Teacher[] = (teachersRes.data || []).map((teacher: any) => ({
         id: teacher.id,
         name: teacher.name,
         email: teacher.email,
         max_lessons_per_week: teacher.max_lessons_per_week,
-        subjects: teacher.teacher_subjects?.map((ts: any) => ts.subjects?.name) || [],
+        subjects: teacher.teacher_subjects?.map((ts: any) => ts.subjects?.name).filter(Boolean) || [],
         subjectClassAssignments: Object.values(
           (teacher.teacher_subject_classes || []).reduce((acc: any, item: any) => {
             const subjectName = item.subjects?.name || "Unknown subject";
@@ -95,21 +85,44 @@ const Teachers = () => {
           }, {}),
         ),
       }));
-      setTeachers(formattedTeachers);
-    }
-  };
+
+      return {
+        schoolId,
+        subjects: subjectsRes.data || [],
+        streams: streamsRes.data || [],
+        teachers: formattedTeachers,
+      };
+    },
+  });
+
+  useEffect(() => {
+    if (data === null) navigate("/auth");
+  }, [data, navigate]);
+
+  const schoolId = data?.schoolId ?? "";
+  const streams = data?.streams ?? [];
+  const teachers = data?.teachers ?? [];
+  const refreshData = () => queryClient.invalidateQueries({ queryKey: ["teachers-page"] });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // Email is optional in the UI but required by the DB — synthesize a unique
+      // placeholder when the user leaves it blank so quick-add still works.
+      const emailValue =
+        formData.email.trim() ||
+        `${
+          formData.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "") || "teacher"
+        }.${Math.random().toString(36).slice(2, 7)}@noemail.elimutime`;
+
       const { data: teacher, error: teacherError } = await supabase
         .from("teachers")
         .insert({
           school_id: schoolId,
           name: formData.name,
-          email: formData.email,
+          email: emailValue,
           max_lessons_per_week: formData.maxLessons,
         })
         .select()
@@ -117,69 +130,61 @@ const Teachers = () => {
 
       if (teacherError) throw teacherError;
 
-      if (formData.subjects.length > 0) {
-        for (const subjectName of formData.subjects) {
-          let { data: existingSubject } = await supabase
-            .from("subjects")
-            .select("id")
-            .eq("school_id", schoolId)
-            .eq("name", subjectName)
-            .maybeSingle();
-
-          let subjectId = existingSubject?.id;
-          if (!subjectId) {
-            const { data: createdSubject, error: subjectError } = await supabase
-              .from("subjects")
-              .insert({ school_id: schoolId, name: subjectName })
-              .select()
-              .single();
-            if (subjectError) throw subjectError;
-            subjectId = createdSubject.id;
-          }
-
-          const { error: linkError } = await supabase
-            .from("teacher_subjects")
-            .insert({ teacher_id: teacher.id, subject_id: subjectId });
-
-          if (linkError) throw linkError;
-        }
-      }
-
-      const subjectClassLinks = Object.entries(formData.subjectClassAssignments).flatMap(([subjectName, streamIds]) =>
-        streamIds.map((streamId) => ({ subjectName, streamId })),
+      // Resolve every subject name we need (taught + linked) to an id in bulk,
+      // creating any missing ones with a single insert instead of one-per-loop.
+      const linkEntries = Object.entries(formData.subjectClassAssignments).flatMap(([subjectName, streamIds]) =>
+        streamIds.map((streamId) => ({ subjectName: subjectName.trim(), streamId })),
+      );
+      const neededSubjects = Array.from(
+        new Set(
+          [...formData.subjects, ...linkEntries.map((link) => link.subjectName)]
+            .map((name) => name.trim())
+            .filter(Boolean),
+        ),
       );
 
-      if (subjectClassLinks.length > 0) {
-        for (const link of subjectClassLinks) {
-          const subjectId = await (async () => {
-            const { data: existingSubject } = await supabase
-              .from("subjects")
-              .select("id")
-              .eq("school_id", schoolId)
-              .eq("name", link.subjectName)
-              .maybeSingle();
+      const subjectIdByName = new Map<string, string>();
+      if (neededSubjects.length > 0) {
+        const { data: existing } = await supabase
+          .from("subjects")
+          .select("id, name")
+          .eq("school_id", schoolId)
+          .in("name", neededSubjects);
+        (existing || []).forEach((subject: any) => subjectIdByName.set(subject.name, subject.id));
 
-            if (existingSubject?.id) return existingSubject.id;
-
-            const { data: createdSubject, error: subjectError } = await supabase
-              .from("subjects")
-              .insert({ school_id: schoolId, name: link.subjectName })
-              .select("id")
-              .single();
-
-            if (subjectError) throw subjectError;
-            return createdSubject.id;
-          })();
-
-          const { error: linkError } = await supabase.from("teacher_subject_classes").insert({
-            teacher_id: teacher.id,
-            subject_id: subjectId,
-            stream_id: link.streamId,
-          });
-
-          if (linkError) throw linkError;
+        const missing = neededSubjects.filter((name) => !subjectIdByName.has(name));
+        if (missing.length > 0) {
+          const { data: created, error: createError } = await supabase
+            .from("subjects")
+            .insert(missing.map((name) => ({ school_id: schoolId, name })))
+            .select("id, name");
+          if (createError) throw createError;
+          (created || []).forEach((subject: any) => subjectIdByName.set(subject.name, subject.id));
         }
       }
+
+      const teacherSubjectRows = formData.subjects
+        .map((name) => subjectIdByName.get(name.trim()))
+        .filter((id): id is string => Boolean(id))
+        .map((subjectId) => ({ teacher_id: teacher.id, subject_id: subjectId }));
+
+      const teacherSubjectClassRows = linkEntries
+        .map((link) => {
+          const subjectId = subjectIdByName.get(link.subjectName);
+          return subjectId ? { teacher_id: teacher.id, subject_id: subjectId, stream_id: link.streamId } : null;
+        })
+        .filter((row): row is { teacher_id: string; subject_id: string; stream_id: string } => Boolean(row));
+
+      const writes = [];
+      if (teacherSubjectRows.length > 0) {
+        writes.push(supabase.from("teacher_subjects").insert(teacherSubjectRows));
+      }
+      if (teacherSubjectClassRows.length > 0) {
+        writes.push(supabase.from("teacher_subject_classes").insert(teacherSubjectClassRows));
+      }
+      const writeResults = await Promise.all(writes);
+      const failedWrite = writeResults.find((result) => result.error);
+      if (failedWrite?.error) throw failedWrite.error;
 
       toast.success("Teacher added successfully!");
       setFormData({
@@ -191,7 +196,7 @@ const Teachers = () => {
       });
       setNewSubject("");
       setShowForm(false);
-      fetchData();
+      refreshData();
     } catch (error: any) {
       toast.error(error.message || "Failed to add teacher");
     } finally {
@@ -204,7 +209,7 @@ const Teachers = () => {
       const { error } = await supabase.from("teachers").delete().eq("id", teacherId);
       if (error) throw error;
       toast.success("Teacher removed");
-      fetchData();
+      refreshData();
     } catch (error: any) {
       toast.error(error.message || "Failed to delete teacher");
     }
@@ -323,14 +328,13 @@ const Teachers = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
+                      <Label htmlFor="email">Email (optional)</Label>
                       <Input
                         id="email"
                         type="email"
                         placeholder="john@school.com"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        required
                       />
                     </div>
                   </div>
@@ -514,7 +518,13 @@ const Teachers = () => {
           </AnimatePresence>
         </motion.div>
 
-        {teachers.length === 0 && !showForm && (
+        {isLoading && teachers.length === 0 && (
+          <div className="flex min-h-[240px] items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
+
+        {teachers.length === 0 && !showForm && !isLoading && (
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }}>
             <Card className="glass p-6 text-center sm:p-12">
               <Users className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />

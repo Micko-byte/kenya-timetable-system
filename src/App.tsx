@@ -22,7 +22,18 @@ import AdminTemplateEditor from "./pages/admin/AdminTemplateEditor";
 import AdminTimetables from "./pages/admin/AdminTimetables";
 import AdminBilling from "./pages/admin/AdminBilling";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Cached pages render instantly on revisit, then refresh quietly in the
+      // background instead of blocking the UI on every navigation.
+      staleTime: 5 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {

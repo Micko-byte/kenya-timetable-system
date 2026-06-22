@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
@@ -37,8 +38,7 @@ interface Stream {
 
 const Streams = () => {
   const navigate = useNavigate();
-  const [streams, setStreams] = useState<Stream[]>([]);
-  const [schoolId, setSchoolId] = useState<string>("");
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [streamToDelete, setStreamToDelete] = useState<Stream | null>(null);
@@ -49,28 +49,28 @@ const Streams = () => {
     streamNames: "",
   });
 
+  const { data, isLoading } = useQuery({
+    queryKey: ["streams-page"],
+    queryFn: async () => {
+      const session = await getCurrentSchoolSession();
+      if (!session) return null;
+      const { data: streamsData } = await supabase
+        .from("streams")
+        .select("*")
+        .eq("school_id", session.schoolId)
+        .order("grade", { ascending: true })
+        .order("stream_name", { ascending: true });
+      return { schoolId: session.schoolId, streams: (streamsData || []) as Stream[] };
+    },
+  });
+
   useEffect(() => {
-    fetchStreams();
-  }, [navigate]);
+    if (data === null) navigate("/auth");
+  }, [data, navigate]);
 
-  const fetchStreams = async () => {
-    const session = await getCurrentSchoolSession();
-    if (!session) {
-      navigate("/auth");
-      return;
-    }
-
-    setSchoolId(session.schoolId);
-
-    const { data: streamsData } = await supabase
-      .from("streams")
-      .select("*")
-      .eq("school_id", session.schoolId)
-      .order("grade", { ascending: true })
-      .order("stream_name", { ascending: true });
-
-    setStreams(streamsData || []);
-  };
+  const schoolId = data?.schoolId ?? "";
+  const streams = data?.streams ?? [];
+  const refreshStreams = () => queryClient.invalidateQueries({ queryKey: ["streams-page"] });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,7 +113,7 @@ const Streams = () => {
       toast.success(`Successfully created ${streamsToCreate.length} streams!`);
       setFormData({ firstGrade: "", lastGrade: "", streamNames: "" });
       setShowForm(false);
-      fetchStreams();
+      refreshStreams();
     } catch (error: any) {
       toast.error(error.message || "Failed to create streams");
     } finally {
@@ -126,7 +126,7 @@ const Streams = () => {
       const { error } = await supabase.from("streams").delete().eq("id", streamId);
       if (error) throw error;
       toast.success("Stream deleted");
-      fetchStreams();
+      refreshStreams();
     } catch (error: any) {
       toast.error(error.message || "Failed to delete stream");
     }
@@ -139,7 +139,7 @@ const Streams = () => {
       toast.success("All streams deleted");
       setDeleteAllOpen(false);
       setStreamToDelete(null);
-      await fetchStreams();
+      await refreshStreams();
     } catch (error: any) {
       toast.error(error.message || "Failed to delete streams");
     }
@@ -316,7 +316,11 @@ const Streams = () => {
         </AnimatePresence>
 
         <section className="rounded-[2rem] border border-primary/10 bg-white/92 p-6 shadow-[0_18px_40px_rgba(1,16,39,0.06)]">
-          {hasStreams ? (
+          {isLoading && !hasStreams ? (
+            <div className="flex min-h-[320px] items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : hasStreams ? (
             <div className="space-y-6">
               {Object.entries(groupedStreams)
                 .sort(([a], [b]) => parseInt(a) - parseInt(b))
