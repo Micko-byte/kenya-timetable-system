@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { paystackApi } from '@/lib/paystack';
+import { friendlyError } from '@/lib/friendlyError';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +36,7 @@ import {
   hasRecordedPlanGeneration,
   getSelectedFrontendPlan,
   recordPlanGeneration,
+  calculatePricing,
 } from '@/lib/planSelection';
 import { advanceSchoolOnboardingTour } from '@/lib/onboardingTour';
 import {
@@ -929,8 +931,8 @@ const Timetables = () => {
     setShowGenerationPricingPopup(true);
   };
 
-  const confirmGenerate = () => {
-    setIsGenerating(true);
+  // The actual generation, run once payment (if any) is settled.
+  const runGeneration = () => {
     const generated = buildGeneratedState();
 
     if (!generated) {
@@ -963,8 +965,76 @@ const Timetables = () => {
     window.setTimeout(() => setIsGenerating(false), 300);
     toast({
       title: 'Timetables generated',
-      description: `Your stream timetables are ready for review and export. ${selectedPlan === 'payg' ? `Estimated Pay-As-You-Go cost: KES ${generationSnapshot.calculated_price.toLocaleString()}.` : 'This generation is covered by your selected plan.'}`,
+      description: `Your stream timetables are ready for review and export.${selectedPlan === 'payg' ? ` Pay-As-You-Go charge: KES ${generationSnapshot.calculated_price.toLocaleString()} (paid).` : ' This generation is covered by your selected plan.'}`,
     });
+  };
+
+  const confirmGenerate = async () => {
+    const selectedPlan = getSelectedFrontendPlan(schoolId) || 'payg';
+
+    // Pay-As-You-Go: charge for THIS generation before generating. Paid
+    // subscribers (basic/premium) skip payment and generate directly.
+    if (selectedPlan === 'payg' && !isSubscribed) {
+      const { paygPrice } = calculatePricing(teachers.length, streams.length);
+      if (paygPrice <= 0) {
+        toast({ title: 'Nothing to charge', description: 'Add teachers and streams first.', variant: 'destructive' });
+        return;
+      }
+      if (!schoolId || !schoolEmail) {
+        toast({ title: 'Account still loading', description: 'Please wait a moment and try again.', variant: 'destructive' });
+        return;
+      }
+
+      try {
+        setIsGenerating(true);
+        const init = await paystackApi.initializePayment({
+          schoolId,
+          schoolName,
+          email: schoolEmail,
+          planType: 'payg',
+          amount: paygPrice * 100,
+          paymentChannel: 'card',
+          callbackUrl: `${window.location.origin}${window.location.pathname}`,
+          teachersCount: teachers.length,
+          streamsCount: streams.length,
+        });
+        if (!init.access_code) {
+          throw new Error('Paystack did not return an access code.');
+        }
+        await paystackApi.openInlineCheckout(init.access_code, {
+          onSuccess: async (reference) => {
+            try {
+              const verification = await paystackApi.verifyPayment(reference || init.reference);
+              if (verification.status === 'success' || verification.subscription_status === 'active') {
+                runGeneration();
+              } else {
+                setIsGenerating(false);
+                toast({ title: 'Payment processing', description: 'We could not confirm the payment yet. Your timetable will be ready once it is confirmed.', variant: 'destructive' });
+              }
+            } catch (error) {
+              setIsGenerating(false);
+              toast({ title: 'Verification issue', description: friendlyError(error, 'Could not verify the payment.'), variant: 'destructive' });
+            }
+          },
+          onCancel: () => {
+            setIsGenerating(false);
+            toast({ title: 'Payment cancelled', description: 'No timetable was generated — you were not charged.' });
+          },
+          onError: (error) => {
+            setIsGenerating(false);
+            toast({ title: 'Payment error', description: friendlyError(error, 'Checkout failed.'), variant: 'destructive' });
+          },
+        });
+      } catch (error) {
+        setIsGenerating(false);
+        toast({ title: 'Could not start payment', description: friendlyError(error, 'Please try again.'), variant: 'destructive' });
+      }
+      return;
+    }
+
+    // Subscribed or on a termly plan: generate directly.
+    setIsGenerating(true);
+    runGeneration();
   };
 
   const handlePaymentVerified = useCallback(async () => {

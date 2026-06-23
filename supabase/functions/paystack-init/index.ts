@@ -8,14 +8,19 @@ const corsHeaders = {
   "Access-Control-Max-Age": "86400",
 };
 
-type PaystackPlanType = "starter" | "growth" | "international";
+type PaystackPlanType = "starter" | "growth" | "international" | "payg";
 type PaymentChannel = "card" | "mobile_money";
 
-const PLAN_AMOUNTS: Record<PaystackPlanType, number> = {
+const PLAN_AMOUNTS: Record<"starter" | "growth" | "international", number> = {
   starter: 50000,
   growth: 750000,
   international: 249900,
 };
+
+// Pay-As-You-Go is priced server-side from the school's size (KES per item),
+// so the client can never set an arbitrary price.
+const PAYG_TEACHER_RATE = 8;
+const PAYG_STREAM_RATE = 11;
 
 const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
 
@@ -39,6 +44,8 @@ serve(async (req) => {
     const phone = String(payload.phone || "");
     const planType = String(payload.planType || "") as PaystackPlanType;
     const requestedAmount = Number(payload.amount || 0);
+    const teachersCount = Math.max(0, Math.floor(Number(payload.teachersCount || 0)));
+    const streamsCount = Math.max(0, Math.floor(Number(payload.streamsCount || 0)));
     const paymentChannel = String(payload.paymentChannel || "card") as PaymentChannel;
     const callbackUrl = String(payload.callbackUrl || "");
 
@@ -46,16 +53,25 @@ serve(async (req) => {
       throw new Error("Missing checkout details.");
     }
 
-    if (!(planType in PLAN_AMOUNTS)) {
-      throw new Error("Invalid plan type.");
-    }
-
-    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
-      throw new Error("Missing plan amount.");
-    }
-
-    if (requestedAmount !== PLAN_AMOUNTS[planType]) {
-      throw new Error("Plan amount does not match the selected billing plan.");
+    // Resolve the amount to charge (in cents). PAYG is computed server-side from
+    // the school size; fixed plans must exactly match their published price.
+    let chargeAmount: number;
+    if (planType === "payg") {
+      chargeAmount = (teachersCount * PAYG_TEACHER_RATE + streamsCount * PAYG_STREAM_RATE) * 100;
+      if (!Number.isFinite(chargeAmount) || chargeAmount <= 0) {
+        throw new Error("Add teachers and streams before paying for a generation.");
+      }
+    } else {
+      if (!(planType in PLAN_AMOUNTS)) {
+        throw new Error("Invalid plan type.");
+      }
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+        throw new Error("Missing plan amount.");
+      }
+      if (requestedAmount !== PLAN_AMOUNTS[planType as keyof typeof PLAN_AMOUNTS]) {
+        throw new Error("Plan amount does not match the selected billing plan.");
+      }
+      chargeAmount = requestedAmount;
     }
 
     const safeCallbackUrl = callbackUrl || undefined;
@@ -70,7 +86,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         email,
-        amount: requestedAmount,
+        amount: chargeAmount,
         currency: "KES",
         reference,
         callback_url: safeCallbackUrl,
@@ -100,7 +116,7 @@ serve(async (req) => {
       plan_type: planType,
       payment_channel: paymentChannel,
       status: "pending",
-      amount: requestedAmount,
+      amount: chargeAmount,
       currency: "KES",
       paystack_reference: resolvedReference,
       paystack_access_code: accessCode || null,
@@ -125,7 +141,7 @@ serve(async (req) => {
           reference: resolvedReference,
           access_code: accessCode,
           authorization_url: authorizationUrl,
-          amount: requestedAmount,
+          amount: chargeAmount,
           currency: "KES",
         },
       },

@@ -108,11 +108,14 @@ export interface PaystackInitInput {
   schoolId: string;
   schoolName: string;
   email: string;
-  planType: PaystackPlanType;
+  planType: PaystackPlanType | "payg";
   amount: number;
   paymentChannel: PaymentChannel;
   callbackUrl?: string;
   phone?: string;
+  /** For PAYG: the server prices the generation from these counts. */
+  teachersCount?: number;
+  streamsCount?: number;
 }
 
 export interface PaystackInitResult {
