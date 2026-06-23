@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, GraduationCap, Palette, Save, ArrowLeft, Globe, Layout, Type } from 'lucide-react';
+import { RotateCcw, GraduationCap, Palette, Save, ArrowLeft, Globe, Layout, Type, Plus, X } from 'lucide-react';
 import SchoolHeader from '@/features/timetable/components/SchoolHeader';
 import TimetableGridComponent from '@/features/timetable/components/TimetableGrid';
 import DesignSelector from '@/features/timetable/components/DesignSelector';
@@ -17,6 +17,7 @@ import { TimetableTemplate } from '@/features/timetable/types';
 import AdminLayout from '@/components/AdminLayout';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 
 type ActiveLevel = Exclude<EducationLevel, 'common'>;
 
@@ -263,7 +264,7 @@ export default function AdminTemplateEditor() {
             <Card className="p-4 space-y-4">
               <h3 className="font-bold text-sm flex items-center gap-2"><GraduationCap className="w-4 h-4" /> Education Level</h3>
               <div className="grid grid-cols-2 gap-2">
-                {(Object.keys(EDUCATION_LEVELS) as ActiveLevel[]).filter(k => k !== 'common').map((key) => (
+                {(Object.keys(EDUCATION_LEVELS) as EducationLevel[]).filter((k): k is ActiveLevel => k !== 'common').map((key) => (
                   <button
                     key={key}
                     onClick={() => switchLevel(key)}

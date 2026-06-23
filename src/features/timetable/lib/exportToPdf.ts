@@ -1,6 +1,5 @@
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
-
+// html2canvas + jspdf are heavy (~600 kB). They're dynamically imported inside
+// exportTimetableToPdf so they only load when the user actually exports a PDF.
 const A4_LANDSCAPE_WIDTH_MM = 297;
 const A4_LANDSCAPE_HEIGHT_MM = 210;
 const PAGE_MARGIN_MM = 8;
@@ -63,6 +62,11 @@ function preparePrintClone(element: HTMLElement) {
 }
 
 export async function exportTimetableToPdf(elementId: string, fileName: string) {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
   const element = document.getElementById(elementId);
   if (!element) throw new Error("Timetable element not found");
 
