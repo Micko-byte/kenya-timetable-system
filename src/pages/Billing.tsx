@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/friendlyError";
 import {
   ArrowLeft,
   CreditCard,
@@ -147,7 +148,7 @@ const Billing = () => {
       setTeacherCount(teachersTotal || 0);
       setStreamCount(streamsTotal || 0);
     } catch (error: any) {
-      toast.error(error.message || "Failed to load billing details");
+      toast.error(friendlyError(error, "Failed to load billing details"));
     } finally {
       setLoading(false);
     }
@@ -164,7 +165,7 @@ const Billing = () => {
       toast.success("Payment verified and subscription activated.");
       await fetchSubscription();
     } catch (error: any) {
-      toast.error(error.message || "Payment verification failed");
+      toast.error(friendlyError(error, "Payment verification failed"));
     } finally {
       setVerifyingReference(null);
     }
@@ -203,7 +204,7 @@ const Billing = () => {
 
       window.location.assign(authorization_url);
     } catch (error: any) {
-      toast.error(error.message || "Failed to start checkout");
+      toast.error(friendlyError(error, "Failed to start checkout"));
       setCheckingOut(null);
     }
   };

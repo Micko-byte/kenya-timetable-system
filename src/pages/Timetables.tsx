@@ -902,6 +902,30 @@ const Timetables = () => {
       return;
     }
 
+    if (teachers.length === 0) {
+      toast({
+        title: 'No teachers yet',
+        description: 'Add teachers and link them to classes before generating a timetable.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Every teacher must be linked to at least one class (subject-class link)
+    // so the generator knows which stream each teacher teaches.
+    const unlinkedTeachers = teachers.filter((teacher) => teacher.subjectClassLinks.length === 0);
+    if (unlinkedTeachers.length > 0) {
+      const names = unlinkedTeachers.map((teacher) => teacher.name).filter(Boolean);
+      const shown = names.slice(0, 4).join(', ');
+      const extra = names.length > 4 ? ` and ${names.length - 4} more` : '';
+      toast({
+        title: 'Link every teacher to a class first',
+        description: `${shown}${extra} ${names.length === 1 ? 'is' : 'are'} not linked to any class yet. Open Teachers → edit each teacher → add a Subject-Class link, then generate.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setShowGenerationPricingPopup(true);
   };
 

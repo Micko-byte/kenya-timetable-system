@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/friendlyError";
 import { Plus, Trash2, Users, Mail, BookOpen, Loader2, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SubjectClassAssignmentsEditor } from "@/components/SubjectClassAssignmentsEditor";
@@ -198,7 +199,7 @@ const Teachers = () => {
       setShowForm(false);
       refreshData();
     } catch (error: any) {
-      toast.error(error.message || "Failed to add teacher");
+      toast.error(friendlyError(error, "Failed to add teacher"));
     } finally {
       setLoading(false);
     }
@@ -211,7 +212,7 @@ const Teachers = () => {
       toast.success("Teacher removed");
       refreshData();
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete teacher");
+      toast.error(friendlyError(error, "Failed to delete teacher"));
     }
   };
 
