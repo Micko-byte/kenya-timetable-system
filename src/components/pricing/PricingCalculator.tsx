@@ -152,35 +152,8 @@ export const PricingCalculator = ({
 
   return (
     <div className="space-y-8">
-      <div className="mx-auto max-w-3xl rounded-[2rem] border border-primary/10 bg-white/90 px-5 py-4 shadow-[0_18px_45px_rgba(1,16,39,0.06)]">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Live pricing</p>
-            <h3 className="mt-1 text-2xl font-bold text-foreground">
-              {currentPlan === "payg" ? "Pay-As-You-Go" : currentPlan === "basic" ? "Basic plan" : currentPlan === "premium" ? "Premium plan" : "Pay-As-You-Go"}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Based on {teacherCount} teacher{teacherCount === 1 ? "" : "s"} and {streamCount} stream{streamCount === 1 ? "" : "s"}.
-            </p>
-          </div>
-          <div className="text-left sm:text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Real price</p>
-            <p className="text-4xl font-black text-primary">
-              {formatPrice(
-                currentPlan === "basic"
-                  ? pricing.basicPrice
-                  : currentPlan === "premium"
-                    ? pricing.premiumPrice
-                    : pricing.paygPrice,
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="mx-auto max-w-3xl space-y-4 text-center">
-        <h3 className="text-2xl font-bold text-foreground">Estimated cost based on your inputs</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-muted-foreground md:text-lg">
           Enter your teacher and stream counts to compare Pay-As-You-Go, Basic, and Premium in real time.
         </p>
       </div>

@@ -52,8 +52,8 @@ export const PricingSection = ({
       <div className={cn("container relative z-10 mx-auto px-4", compact ? "py-2" : "py-20")}>
         {showHeading && (
           <div className="mb-12 space-y-4 text-center">
-            <h2 className="text-4xl font-bold text-foreground">Simple, Transparent Pricing</h2>
-            <p className="text-xl text-muted-foreground">Choose the perfect plan for your school</p>
+            <h2 className="mt-4 text-4xl font-bold text-foreground md:text-5xl">Simple, Transparent Pricing</h2>
+      
           </div>
         )}
 

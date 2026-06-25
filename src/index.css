@@ -160,25 +160,43 @@ All colors MUST be HSL.
   }
 
   .feature-flip-card {
+    position: relative;
     perspective: 1600px;
+    perspective-origin: 50% 50%;
+    transform-style: preserve-3d;
+    isolation: isolate;
+    overflow: visible;
   }
 
   .feature-flip-card-inner {
-    position: relative;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     transform-style: preserve-3d;
+    transform-origin: center center;
+    transform: translate3d(0, 0, 0) rotateY(0deg);
     transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
   }
 
   .feature-flip-card:hover .feature-flip-card-inner,
   .feature-flip-card:focus-within .feature-flip-card-inner {
-    transform: rotateY(180deg);
+    transform: translate3d(0, 0, 0) rotateY(180deg);
   }
 
   .feature-flip-face {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
+  }
+
+  .feature-flip-face-front {
+    transform: rotateY(0deg);
   }
 
   .feature-flip-face-back {

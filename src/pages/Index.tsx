@@ -1,28 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  X,
+  Building2,
+  Users,
+  Clock,
+  Sparkles,
+  PencilLine,
+  Share2,
+} from "lucide-react";
 
 import logo from "@/assets/logo-transparent.png";
 import heroImage from "@/assets/hero.png";
 import demoGif from "@/assets/demo.gif";
-import teacherIcon from "@/assets/feature-teacher.svg";
-import streamIcon from "@/assets/feature-stream.svg";
-import timetableIcon from "@/assets/feature-timetable.svg";
 import { Header } from "@/components/Header";
 import { PricingSection } from "@/components/pricing/PricingSection";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { startPendingOnboardingTour } from "@/lib/onboardingTour";
 import { setSelectedFrontendPlan, type FrontendPlanType, type PricingSnapshot } from "@/lib/planSelection";
 
 const HERO_WORDS = ["fast.", "accurate.", "effortless."];
-
-const termlyCardClasses: Record<string, string> = {
-  purple: "bg-gradient-to-br from-secondary/14 via-white to-white border-secondary/20",
-  orange: "bg-gradient-to-br from-accent/14 via-white to-white border-accent/20",
-  blue: "bg-gradient-to-br from-primary/14 via-white to-white border-primary/20",
-};
 
 const planAccentClasses: Record<string, { price: string; button: string }> = {
   purple: {
@@ -39,39 +39,100 @@ const planAccentClasses: Record<string, { price: string; button: string }> = {
   },
 };
 
-const FEATURES = [
+const SWITCH_ROWS = [
   {
-    title: "Teacher Management",
-    description: "Add teachers, assign subjects, and manage workload.",
-    icon: teacherIcon,
-    color: "purple",
-    revealLabel: "On the flip side",
-    revealTitle: "See staffing at a glance",
-    revealDescription:
-      "Hover to reveal a cleaner view of who teaches what, where the gaps are, and how workloads stay balanced.",
-    highlights: ["Load balance snapshots", "Subject ownership clarity", "Quick staffing confidence"],
+    label: "Time to build a timetable",
+    before: "Two to three weeks of late nights",
+    after: "A first draft ready in minutes",
   },
   {
-    title: "Smart Streams",
-    description: "Organize classes and streams automatically.",
-    icon: streamIcon,
-    color: "orange",
-    revealLabel: "Behind the card",
-    revealTitle: "Turn structure into flow",
-    revealDescription:
-      "The back view shows how streams line up neatly so classes, rooms, and learning groups stay easy to follow.",
-    highlights: ["Stream grouping cues", "Clear room planning", "Less manual reshuffling"],
+    label: "Teacher clashes",
+    before: "Found out the hard way on Monday morning",
+    after: "Caught and resolved before you publish",
   },
   {
-    title: "Automated Timetables",
-    description: "Generate conflict-free timetables powered by AI.",
-    icon: timetableIcon,
-    color: "blue",
-    revealLabel: "What opens up",
-    revealTitle: "From draft to done faster",
-    revealDescription:
-      "Flip the card to imagine a timetable that resolves clashes quickly and leaves your team reviewing, not rebuilding.",
-    highlights: ["Conflict-aware layouts", "Faster first drafts", "More time for review"],
+    label: "Room conflicts",
+    before: "Tracked by hand on a whiteboard",
+    after: "Flagged and fixed automatically",
+  },
+  {
+    label: "Version history",
+    before: "spreadsheet_FINAL_v8_useThisOne.xlsx",
+    after: "Every version saved, with a full audit trail",
+  },
+  {
+    label: "Substitute management",
+    before: "Frantic phone calls at 6am",
+    after: "A ranked list of substitutes, one tap away",
+  },
+  {
+    label: "Optimisation",
+    before: "Whatever you had time to manage",
+    after: "Multiple optimisation passes, scored for quality",
+  },
+  {
+    label: "Parent visibility",
+    before: "Printed Friday, lost by Monday",
+    after: "Always current, right in the parent app",
+  },
+  {
+    label: "Publishing",
+    before: "Photocopies pinned to a noticeboard",
+    after: "Pushed instantly to teachers, parents and students",
+  },
+  {
+    label: "Mid-term updates",
+    before: "Passed along by word of mouth",
+    after: "Sent straight away as a notification",
+  },
+  {
+    label: "Day-to-day management",
+    before: "Rebuilt by hand every time something changes",
+    after: "Runs as a living, always up-to-date system",
+  },
+] as const;
+
+const HOW_IT_WORKS_STEPS = [
+  {
+    title: "Set up your school",
+    description:
+      "Add your school's streams and class groups first. This gives the system the structure it needs for every timetable.",
+    icon: Building2,
+    iconBg: "bg-primary",
+  },
+  {
+    title: "Add teachers and subjects",
+    description:
+      "Enter teacher names and the subjects they teach. Link teachers to the streams or classes they cover.",
+    icon: Users,
+    iconBg: "bg-secondary",
+  },
+  {
+    title: "Define your school day",
+    description:
+      "Set how many periods you have and where breaks fall. This includes your bell times, lesson slots, and break schedule.",
+    icon: Clock,
+    iconBg: "bg-accent",
+  },
+  {
+    title: "Generate the timetable",
+    description: "Run the timetable engine once your data is ready. ElimuTime builds a clash-free schedule automatically.",
+    icon: Sparkles,
+    iconBg: "bg-primary",
+  },
+  {
+    title: "Review and adjust",
+    description:
+      "Check the generated timetable and make edits if needed. Update teacher assignments, move classes, or fine-tune the layout.",
+    icon: PencilLine,
+    iconBg: "bg-secondary",
+  },
+  {
+    title: "Export and share",
+    description:
+      "Save the timetable as PDF or Excel, or publish it for staff. Share the final schedule with teachers and students.",
+    icon: Share2,
+    iconBg: "bg-accent",
   },
 ] as const;
 
@@ -80,6 +141,11 @@ const Index = () => {
   const [heroWordIndex, setHeroWordIndex] = useState(0);
   const [typedWord, setTypedWord] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const stepIconRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [timelineProgress, setTimelineProgress] = useState(0);
+  const [activeStepIndex, setActiveStepIndex] = useState(0);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -130,6 +196,52 @@ const Index = () => {
     return () => window.clearTimeout(timeout);
   }, [heroWordIndex, isDeleting, typedWord]);
 
+  // Drives the "path" animation on the How It Works timeline: tracks how far
+  // the line should fill and which step icon counts as currently active.
+  useEffect(() => {
+    let frame: number | null = null;
+
+    const updateTimelineProgress = () => {
+      const timelineEl = timelineRef.current;
+      if (!timelineEl) return;
+
+      const rect = timelineEl.getBoundingClientRect();
+      const anchor = window.innerHeight * 0.55;
+
+      const rawProgress = (anchor - rect.top) / rect.height;
+      setTimelineProgress(Math.min(Math.max(rawProgress, 0), 1));
+
+      let active = 0;
+      stepIconRefs.current.forEach((iconEl, index) => {
+        if (!iconEl) return;
+        const iconRect = iconEl.getBoundingClientRect();
+        const iconCenter = iconRect.top + iconRect.height / 2;
+        if (iconCenter <= anchor) {
+          active = index;
+        }
+      });
+      setActiveStepIndex(active);
+    };
+
+    const handleScroll = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        updateTimelineProgress();
+        frame = null;
+      });
+    };
+
+    updateTimelineProgress();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
   const handleSelectPlan = (planType: FrontendPlanType, snapshot: PricingSnapshot) => {
     setSelectedFrontendPlan(planType, undefined, snapshot);
     startPendingOnboardingTour();
@@ -169,8 +281,8 @@ const Index = () => {
                     </span>
                   </h1>
                   <p className="text-xl leading-relaxed text-muted-foreground">
-                    Timetables built in seconds, so your school spends less time planning and more time on what matters
-                    most: teaching.
+                    Built for Kenyan Schools and CBC Scheduling.
+Create complete, conflict-free timetables in minutes. Manage teachers, classrooms, subjects, and lesson schedules from one platform.
                   </p>
                 </div>
 
@@ -225,136 +337,272 @@ const Index = () => {
           </div>
         </section>
 
-        <section className="relative flex items-center justify-center overflow-hidden bg-transparent">
-          <div className="container relative z-10 mx-auto px-4 py-20">
-            <div className="rounded-[2rem] border border-white/50 bg-[#001429] px-6 py-12 shadow-[0_24px_70px_rgba(0,16,39,0.12)] md:px-10 md:py-14">
-              <div className="mb-16 text-center">
-                <h2 className="text-4xl font-bold text-white/70">Why choose ElimuTime?</h2>
-              </div>
+<section className="relative flex items-center justify-center overflow-hidden bg-transparent py-12">
+  <div className="container relative z-10 mx-auto px-4 py-20">
+    <div className="rounded-[2rem] border border-white/10 bg-[#0A1628] p-10 md:p-14">
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {FEATURES.map((feature) => (
-                  <div key={feature.title} className="feature-flip-card h-[430px] md:h-[360px]">
-                    <div className="feature-flip-card-inner h-full">
-                      <Card
-                        className={`feature-flip-face feature-flip-face-front relative flex h-full flex-col items-center justify-center overflow-hidden rounded-none border-0 p-7 text-center text-white shadow-[0_24px_60px_rgba(1,16,39,0.18)] md:p-10 ${
-                          feature.color === "purple"
-                            ? "bg-gradient-to-br from-secondary via-secondary/90 to-secondary/75"
-                            : feature.color === "orange"
-                              ? "bg-gradient-to-br from-accent via-accent/90 to-accent/75"
-                              : "bg-gradient-to-br from-primary via-primary/90 to-primary/75"
-                        }`}
-                      >
-                        <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
-                          <div className="space-y-5 md:space-y-6">
-                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/12 p-3 md:h-20 md:w-20 md:p-4">
-                              <img
-                                src={feature.icon}
-                                alt=""
-                                aria-hidden="true"
-                                loading="lazy"
-                                decoding="async"
-                                className="h-full w-full object-contain"
-                              />
-                            </div>
-                            <div className="space-y-3">
-                              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">Core feature</p>
-                              <h3 className="text-xl font-bold md:text-3xl">{feature.title}</h3>
-                              <p className="max-w-[18rem] text-sm leading-6 text-white/70 md:text-base md:leading-7">
-                                {feature.description}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </Card>
-
-                      <Card className={`feature-flip-face feature-flip-face-back overflow-hidden border rounded-none shadow-lg ${termlyCardClasses[feature.color]}`}>
-                        <div className="flex h-full flex-col justify-between p-3.5 text-left md:p-6">
-                          <div className="space-y-2.5 md:space-y-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] md:text-xs ${planAccentClasses[feature.color].price}`}>
-                                  {feature.revealLabel}
-                                </p>
-                                <h3 className="mt-1.5 max-w-[11rem] text-[15px] font-bold leading-5 text-foreground md:mt-2 md:max-w-none md:text-xl md:leading-6">
-                                  {feature.revealTitle}
-                                </h3>
-                              </div>
-                              <div className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold md:px-3 md:text-[11px] ${planAccentClasses[feature.color].button}`}>
-                                Live preview
-                              </div>
-                            </div>
-
-                            <p className="text-[11px] leading-4 text-muted-foreground md:text-sm md:leading-6">
-                              {feature.revealDescription}
-                            </p>
-
-                            <div className="space-y-1 md:space-y-2">
-                              {feature.highlights.map((highlight) => (
-                                <div key={highlight} className="flex items-center gap-2">
-                                  <span
-                                    className={`inline-flex h-2 w-2 shrink-0 rounded-full ${
-                                      feature.color === "purple"
-                                        ? "bg-secondary"
-                                        : feature.color === "orange"
-                                          ? "bg-accent"
-                                          : "bg-primary"
-                                    }`}
-                                  />
-                                  <span className="text-[11px] font-medium leading-4 text-foreground md:text-sm">{highlight}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="mt-2 rounded-2xl border border-white/70 bg-white/70 px-3 py-2 text-[10px] leading-4 text-muted-foreground md:mt-4 md:px-4 md:py-3 md:text-xs md:leading-5">
-                            Built to replace last-minute timetable fixes with calmer reviews and quicker decisions.
-                          </div>
-                        </div>
-                      </Card>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
+      <div className="mb-6 flex items-center justify-center">
+        <span className="text-xs font-bold uppercase tracking-[0.25em] text-primary">The Evolution</span>
       </div>
 
+      <div className="mx-auto max-w-3xl text-center">
+        <h2 className="text-4xl font-bold leading-[1.15] text-white md:text-5xl">
+          From spreadsheet chaos to
+          <span className="mt-2 block text-primary">intelligent timetabling</span>
+        </h2>
+        <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-white/50">
+          Schools don't just need a timetable — they need a living system that adapts daily, prevents
+          conflicts, and keeps every stakeholder informed.
+        </p>
+      </div>
+
+      <div className="mt-16 grid gap-5 md:grid-cols-2">
+        {/* Excel column */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/15">
+              <X className="h-5 w-5 text-rose-400" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-[0.15em] text-rose-400">Traditional</span>
+          </div>
+          <h3 className="mb-2 text-xl font-semibold text-white">Excel & Manual</h3>
+          <p className="text-sm leading-relaxed text-white/40">
+            Two to three weeks of edits, whiteboards, spreadsheets, and late-night adjustments.
+          </p>
+          <div className="mt-6 space-y-3">
+            {[
+              "Teacher clashes discovered Monday morning",
+              "Room conflicts tracked on whiteboards",
+              "spreadsheet_FINAL_v8_useThisOne.xlsx",
+              "Frantic 6am substitute phone calls",
+              "Photocopies pinned to noticeboards",
+            ].map((item) => (
+              <div key={item} className="flex items-start gap-3 text-sm text-white/40">
+                <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-rose-400/60" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ElimuTime column */}
+        <div className="rounded-2xl border border-primary/30 bg-primary/[0.06] p-8">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/20">
+              <Check className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-[0.15em] text-primary">ElimuTime</span>
+          </div>
+          <h3 className="mb-2 text-xl font-semibold text-white">Intelligent System</h3>
+          <p className="text-sm leading-relaxed text-white/60">
+            Generates a complete timetable automatically and refines it when needed, in minutes.
+          </p>
+          <div className="mt-6 space-y-3">
+            {[
+              "Clashes caught and resolved before publishing",
+              "Room conflicts flagged and fixed automatically",
+              "Every version saved with a full audit trail",
+              "Ranked substitute list, one tap away",
+              "Pushed instantly to all stakeholders",
+            ].map((item) => (
+              <div key={item} className="flex items-start gap-3 text-sm text-white/60">
+                <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics */}
+      <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
+          <div className="text-3xl font-bold text-primary md:text-4xl">Minutes</div>
+          <div className="mt-1 text-sm text-white/50">to generate a timetable</div>
+          <div className="mt-2 text-xs text-white/30">vs 2–3 weeks manually</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
+          <div className="text-3xl font-bold text-secondary md:text-4xl">100%</div>
+          <div className="mt-1 text-sm text-white/50">clash-free guarantee</div>
+          <div className="mt-2 text-xs text-white/30">automated conflict resolution</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
+          <div className="text-3xl font-bold text-accent md:text-4xl">Real-time</div>
+          <div className="mt-1 text-sm text-white/50">updates across the school</div>
+          <div className="mt-2 text-xs text-white/30">instant notifications to all</div>
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div className="mt-12 text-center">
+        <button
+          onClick={() => navigate("/signup")}
+          className="inline-flex items-center gap-3 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
+        >
+          Ready to transform your timetabling?
+          <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+       <section className="relative flex items-center justify-center overflow-hidden bg-transparent">
+  <div className="container relative z-10 mx-auto px-4 py-24">
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-20 text-center">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
+          How it works
+        </p>
+
+        <h2 className="mt-4 text-4xl font-bold text-foreground md:text-5xl">
+          From blank slate to
+          <span className="block text-primary">
+            published timetable
+          </span>
+        </h2>
+
+        <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-muted-foreground md:text-lg">
+          Six simple steps take you from setting up your school to a finished
+          schedule everyone can access. No spreadsheets. No guesswork.
+        </p>
+      </div>
+
+      <div ref={timelineRef} className="relative mx-auto max-w-3xl">
+        {/* Timeline Track */}
+        <div
+          className="absolute left-6 top-6 bottom-6 w-px bg-primary/15 md:left-7"
+          aria-hidden="true"
+        />
+
+        {/* Animated Progress Line */}
+        <div
+          className="absolute left-6 top-6 bottom-6 w-px origin-top bg-primary transition-transform duration-150 ease-out md:left-7"
+          style={{ transform: `scaleY(${timelineProgress})` }}
+          aria-hidden="true"
+        />
+
+        <div className="space-y-12">
+          {HOW_IT_WORKS_STEPS.map((step, index) => {
+            const StepIcon = step.icon;
+            const isActive = index === activeStepIndex;
+            const isUpcoming = index > activeStepIndex;
+
+            return (
+              <div key={step.title} className="relative flex gap-6">
+                {/* Timeline Icon */}
+                <div
+                  ref={(el) => (stepIconRefs.current[index] = el)}
+                  className={`relative z-10 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-white transition-all duration-500 md:h-14 md:w-14 ${
+                    isUpcoming
+                      ? "bg-slate-200 text-slate-400"
+                      : `${step.iconBg} shadow-lg`
+                  } ${
+                    isActive
+                      ? "scale-110 ring-4 ring-primary/20"
+                      : "scale-100"
+                  }`}
+                >
+                  {isActive && (
+                    <span
+                      className="absolute -inset-1 rounded-full ring-2 ring-primary/30 motion-safe:animate-pulse"
+                      aria-hidden="true"
+                    />
+                  )}
+
+                  <StepIcon
+                    className="h-5 w-5 md:h-6 md:w-6"
+                    aria-hidden="true"
+                  />
+                </div>
+
+                {/* Content Card */}
+                <div
+                  className={`flex-1 rounded-3xl border p-6 transition-all duration-500 ${
+                    isActive
+                      ? "border-primary/30 bg-white shadow-[0_10px_35px_rgba(0,0,0,0.08)]"
+                      : "border-white/40 bg-white/60 backdrop-blur-sm shadow-[0_6px_20px_rgba(0,0,0,0.04)]"
+                  }`}
+                >
+                  <p
+                    className={`text-xs font-semibold uppercase tracking-[0.18em] transition-colors duration-300 ${
+                      isUpcoming ? "text-slate-400" : "text-primary"
+                    }`}
+                  >
+                    Step {index + 1}
+                  </p>
+
+                  <h3 className="mt-3 text-xl font-semibold text-foreground">
+                    {step.title}
+                  </h3>
+
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground md:text-base">
+                    {step.description}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
       <PricingSection sectionId="pricing" onSelectPlan={handleSelectPlan} />
 
-      <footer className="bg-foreground py-12 text-white">
-        <div className="container mx-auto px-4">
-          <div className="mb-8 grid grid-cols-1 gap-10 md:grid-cols-[1.2fr_0.9fr_1fr] md:items-start">
-            <div className="flex flex-col items-center text-center md:items-start md:text-left">
-              <img src={logo} alt="ElimuTime" className="mb-4 h-16 w-auto" />
-              <p className="text-white/70">Smart timetabling for modern schools</p>
-            </div>
+<footer className="bg-foreground py-12 text-white">
+  <div className="container mx-auto px-4">
+    <div className="mb-8 grid grid-cols-1 gap-10 md:grid-cols-[1.2fr_0.9fr_0.9fr] md:items-start">
+      {/* Logo + tagline */}
+      <div className="flex flex-col items-center text-center md:items-start md:text-left">
+        <img src={logo} alt="ElimuTime" className="mb-4 h-16 w-auto" />
+        <p className="text-white/70">Smart timetabling for modern schools</p>
+      </div>
 
-            <div className="flex flex-col items-center justify-center text-center">
-              <p className="text-white/70">
+      {/* Navigation */}
+      <div className="flex flex-col items-center text-center md:items-start md:text-left">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Navigation</p>
+        <nav className="flex flex-col gap-3">
+          <a href="#compare" className="text-white/70 transition-colors hover:text-white">
+            The Upgrade
+          </a>
+          <a href="#how-it-works" className="text-white/70 transition-colors hover:text-white">
+            How it Works
+          </a>
+          <a href="#pricing" className="text-white/70 transition-colors hover:text-white">
+            Pricing
+          </a>
+          <a href="/signup" className="text-white/70 transition-colors hover:text-white">
+            Sign Up
+          </a>
+        </nav>
+      </div>
+
+{/* Connect */}
+<div className="flex flex-col items-center text-center md:items-start md:text-left">
+  <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Connect</p>
+  <div className="flex flex-col gap-3">
+    <a href="mailto:notifytechgroup@gmail.com" className="text-white/70 transition-colors hover:text-white">
+      Email us
+    </a>
+     <p className="text-white/70">
                 Powered by{" "}
                 <a href="https://notifyai.org/" className="font-semibold text-primary hover:underline">
                   Notify AI
                 </a>
-              </p>
-            </div>
+                </p>
+  </div>
+</div>
+    </div>
 
-            <div className="text-center md:text-right">
-              <p className="text-white/70">
-                <a href="mailto:notifytechgroup@gmail.com" className="hover:text-white">
-                  notifytechgroup@gmail.com
-                </a>
-              </p>
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 pt-8 text-center text-sm text-white/60">
-            <p>Crafted with precision for educational excellence</p>
-            <p className="mt-3">&copy; 2026 ElimuTime. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+    <div className="border-t border-white/10 pt-8 text-center text-sm text-white/60">
+      <p>Crafted with precision for educational excellence</p>
+      <p className="mt-3">&copy; 2026 ElimuTime. All rights reserved.</p>
+    </div>
+  </div>
+</footer>
     </div>
   );
 };
