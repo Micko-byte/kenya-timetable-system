@@ -120,7 +120,8 @@ export const PastTimetableUpload = () => {
       </div>
       
       <p className="text-sm text-muted-foreground mb-4">
-        Upload previous timetables to help AI generate better schedules
+        Keep copies of your previous timetables here for reference. Files are stored
+        securely for your records — they are not yet read by the generator.
       </p>
 
       <div className="space-y-4">

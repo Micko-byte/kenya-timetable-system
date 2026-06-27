@@ -8,15 +8,15 @@ const corsHeaders = {
   "Access-Control-Max-Age": "86400",
 };
 
-type PaystackPlanType = "starter" | "growth" | "international";
+type PaystackPlanType = "starter" | "growth" | "international" | "payg";
 
-const PLAN_AMOUNTS: Record<PaystackPlanType, number> = {
+const PLAN_AMOUNTS: Record<"starter" | "growth" | "international", number> = {
   starter: 50000,
   growth: 750000,
   international: 249900,
 };
 
-const PLAN_EXPIRES_IN_DAYS: Record<PaystackPlanType, number> = {
+const PLAN_EXPIRES_IN_DAYS: Record<"starter" | "growth" | "international", number> = {
   starter: 90, // Termly (approx 3 months)
   growth: 90,
   international: 90,
@@ -62,17 +62,21 @@ serve(async (req) => {
       throw new Error("Transaction metadata is incomplete.");
     }
 
-    if (!(planType in PLAN_AMOUNTS)) {
+    const isPayg = planType === "payg";
+
+    if (!isPayg && !(planType in PLAN_AMOUNTS)) {
       throw new Error("Unknown plan type.");
     }
 
-    if (Number(transaction.amount) !== PLAN_AMOUNTS[planType]) {
+    if (!isPayg && Number(transaction.amount) !== PLAN_AMOUNTS[planType as keyof typeof PLAN_AMOUNTS]) {
       throw new Error("Transaction amount does not match the selected plan.");
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + PLAN_EXPIRES_IN_DAYS[planType]);
+    if (!isPayg) {
+      expiresAt.setDate(expiresAt.getDate() + PLAN_EXPIRES_IN_DAYS[planType as keyof typeof PLAN_EXPIRES_IN_DAYS]);
+    }
 
     const paymentPayload = {
       school_id: schoolId,
@@ -111,14 +115,18 @@ serve(async (req) => {
 
     if (paymentError) throw paymentError;
 
-    const { error: subError } = await supabase.from("subscriptions").upsert({
-      school_id: schoolId,
-      plan_type: planType,
-      status: "active",
-      expires_at: expiresAt.toISOString(),
-    });
+    // PAYG is a one-off charge per generation — it must NOT grant a standing
+    // subscription. Only termly plans create/extend the subscription.
+    if (!isPayg) {
+      const { error: subError } = await supabase.from("subscriptions").upsert({
+        school_id: schoolId,
+        plan_type: planType,
+        status: "active",
+        expires_at: expiresAt.toISOString(),
+      });
 
-    if (subError) throw subError;
+      if (subError) throw subError;
+    }
 
     const receiptSubject = `ElimuTime payment receipt - ${planType.replace("_", " ")}`;
     const receiptBody = [
@@ -174,8 +182,8 @@ serve(async (req) => {
           plan_type: planType,
           amount: transaction.amount,
           currency: transaction.currency,
-          expires_at: expiresAt.toISOString(),
-          subscription_status: "active",
+          expires_at: isPayg ? null : expiresAt.toISOString(),
+          subscription_status: isPayg ? "none" : "active",
         },
       },
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
