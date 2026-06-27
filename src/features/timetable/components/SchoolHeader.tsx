@@ -34,12 +34,12 @@ export default function SchoolHeader({
             { label: 'Term', value: term, onChange: onTermChange, placeholder: 'Term 1' },
             { label: 'Year', value: year, onChange: onYearChange, placeholder: '2026' },
           ].map(({ label, value, onChange, placeholder }) => (
-            <label key={label} className="flex flex-col items-center gap-1.5 min-w-0">
-              <span className="text-white text-xs sm:text-sm font-bold tracking-[0.18em] uppercase drop-shadow-sm">{label}</span>
+            <label key={label} className="flex flex-col items-center gap-2 min-w-0">
+              <span className="text-white text-sm sm:text-base font-bold tracking-[0.18em] uppercase drop-shadow-sm">{label}</span>
               <input
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                className="w-full min-w-0 rounded-xl border-2 border-white/40 bg-white/20 px-4 py-3 text-center text-sm sm:text-base font-bold text-white outline-none transition-all placeholder:text-white/60 focus:border-white focus:bg-white/30 leading-tight"
+                className="w-full min-w-0 rounded-xl border-2 border-white/50 bg-white/25 px-5 py-4 text-center text-lg sm:text-xl md:text-2xl font-extrabold text-white outline-none transition-all placeholder:text-white/60 focus:border-white focus:bg-white/35 leading-tight"
                 placeholder={placeholder}
               />
             </label>

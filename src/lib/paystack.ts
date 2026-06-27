@@ -45,7 +45,7 @@ type FunctionResponse<T> = {
   message?: string;
 };
 
-async function callFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
+async function callFunction<T>(name: string, body: object): Promise<T> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -75,7 +75,15 @@ async function callFunction<T>(name: string, body: Record<string, unknown>): Pro
 declare global {
   interface Window {
     PaystackPop?: new () => {
-      resumeTransaction: (accessCode: string) => void;
+      resumeTransaction: (
+        accessCode: string,
+        callbacks?: {
+          onSuccess?: (transaction: { reference: string; [key: string]: unknown }) => void;
+          onLoad?: (response: { [key: string]: unknown }) => void;
+          onCancel?: () => void;
+          onError?: (error: { message?: string; [key: string]: unknown }) => void;
+        },
+      ) => void;
       checkout: (options: {
         key: string;
         email: string;
@@ -125,10 +133,16 @@ export interface PaystackVerifyResult {
   subscription_status: string;
 }
 
+export interface PaystackCheckoutHandlers {
+  onSuccess?: (reference: string) => void;
+  onCancel?: () => void;
+  onError?: (error: Error) => void;
+}
+
 export const paystackApi = {
   initializePayment: (input: PaystackInitInput) => callFunction<PaystackInitResult>("paystack-init", input),
   verifyPayment: (reference: string) => callFunction<PaystackVerifyResult>("paystack-verify", { reference }),
-  openInlineCheckout: async (accessCode: string) => {
+  openInlineCheckout: async (accessCode: string, handlers?: PaystackCheckoutHandlers) => {
     if (!accessCode) {
       throw new Error("Missing Paystack access code.");
     }
@@ -144,7 +158,12 @@ export const paystackApi = {
     }
 
     const popup = new window.PaystackPop();
-    popup.resumeTransaction(accessCode);
+    // Wire Paystack's transaction lifecycle so the caller can verify + activate.
+    popup.resumeTransaction(accessCode, {
+      onSuccess: (transaction) => handlers?.onSuccess?.(transaction?.reference ?? ""),
+      onCancel: () => handlers?.onCancel?.(),
+      onError: (error) => handlers?.onError?.(new Error(error?.message || "Paystack checkout failed.")),
+    });
   },
 };
 

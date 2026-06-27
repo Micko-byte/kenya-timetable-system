@@ -27,12 +27,53 @@ interface PaymentDialogProps {
   schoolId?: string;
   schoolName?: string;
   email?: string;
+  /** Called after a payment is verified and the subscription is active. */
+  onPaymentVerified?: () => void;
 }
 
-export default function PaymentDialog({ open, onOpenChange, schoolId, schoolName, email }: PaymentDialogProps) {
+export default function PaymentDialog({ open, onOpenChange, schoolId, schoolName, email, onPaymentVerified }: PaymentDialogProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const { toast } = useToast();
+
+  // Verify the payment server-side, then activate + close the dialog. Without
+  // this the popup would close on success but the app would never know it.
+  const finalizePayment = async (reference: string) => {
+    if (!reference) {
+      setLoading(null);
+      toast({
+        title: "Couldn't read payment reference",
+        description: "If you were charged, open Billing to confirm your subscription.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const verification = await paystackApi.verifyPayment(reference);
+      const activated =
+        verification.subscription_status === "active" || verification.status === "success";
+
+      if (!activated) {
+        throw new Error("Payment is still processing. Your subscription will activate once confirmed.");
+      }
+
+      toast({
+        title: "Subscription activated 🎉",
+        description: "Payment verified — premium features are now unlocked.",
+      });
+      onPaymentVerified?.();
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({
+        title: "Verification issue",
+        description: error.message || "We couldn't verify the payment yet.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
 
   const handleSubscribe = async (planType: PaystackPlanType) => {
     if (!schoolId || !email) {
@@ -71,16 +112,36 @@ export default function PaymentDialog({ open, onOpenChange, schoolId, schoolName
         throw new Error("Paystack did not return an access code.");
       }
 
-      await paystackApi.openInlineCheckout(initResult.access_code);
+      // The popup's callbacks fire asynchronously — keep the button in its
+      // loading state until one of them resolves (do NOT clear it here).
+      await paystackApi.openInlineCheckout(initResult.access_code, {
+        onSuccess: (reference) => {
+          void finalizePayment(reference || initResult.reference);
+        },
+        onCancel: () => {
+          setLoading(null);
+          toast({
+            title: "Checkout closed",
+            description: "No payment was made. You can subscribe whenever you're ready.",
+          });
+        },
+        onError: (error) => {
+          setLoading(null);
+          toast({
+            title: "Payment error",
+            description: error.message || "Paystack checkout failed.",
+            variant: "destructive",
+          });
+        },
+      });
     } catch (error: any) {
+      setLoading(null);
       console.error("Payment initialization error:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to initialize payment.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(null);
     }
   };
 
