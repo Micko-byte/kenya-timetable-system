@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.auth-signup]
 verify_jwt = false
+
+[functions.parse-timetable]
+verify_jwt = false

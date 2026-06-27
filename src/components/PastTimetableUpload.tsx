@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { friendlyError } from "@/lib/friendlyError";
-import { Upload, FileText, Trash2, Loader2 } from "lucide-react";
+import { Upload, FileText, Trash2, Loader2, Sparkles, Users } from "lucide-react";
 import { useEffect } from "react";
 import { getCurrentSchoolSession } from "@/lib/session";
+import { extractTeachersFromFile, importExtractedTeachers, type ExtractedTeacher } from "@/lib/parseTimetable";
 
 interface Upload {
   id: string;
@@ -21,6 +22,9 @@ export const PastTimetableUpload = () => {
   const [uploading, setUploading] = useState(false);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [schoolId, setSchoolId] = useState<string>("");
+  const [extractingId, setExtractingId] = useState<string | null>(null);
+  const [extracted, setExtracted] = useState<ExtractedTeacher[] | null>(null);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     fetchUploads();
@@ -112,6 +116,41 @@ export const PastTimetableUpload = () => {
     }
   };
 
+  const handleExtract = async (upload: Upload) => {
+    setExtractingId(upload.id);
+    setExtracted(null);
+    try {
+      const teachers = await extractTeachersFromFile(upload.file_url);
+      if (teachers.length === 0) {
+        toast.error("No teachers could be read from that file. Try a clearer image or a different file.");
+      } else {
+        setExtracted(teachers);
+        toast.success(`Found ${teachers.length} teacher${teachers.length === 1 ? "" : "s"} in the timetable.`);
+      }
+    } catch (error: any) {
+      toast.error(friendlyError(error, "Could not read the timetable."));
+    } finally {
+      setExtractingId(null);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!extracted || !schoolId) return;
+    setImporting(true);
+    try {
+      const { imported, unmatchedClasses } = await importExtractedTeachers(schoolId, extracted);
+      toast.success(`Imported ${imported} teacher${imported === 1 ? "" : "s"}.`);
+      if (unmatchedClasses.length) {
+        toast(`Heads up — these classes aren't streams yet: ${unmatchedClasses.join(", ")}. Add those streams, then re-import to link them.`);
+      }
+      setExtracted(null);
+    } catch (error: any) {
+      toast.error(friendlyError(error, "Failed to import teachers."));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <Card className="p-6">
       <div className="flex items-center gap-2 mb-4">
@@ -120,8 +159,8 @@ export const PastTimetableUpload = () => {
       </div>
       
       <p className="text-sm text-muted-foreground mb-4">
-        Keep copies of your previous timetables here for reference. Files are stored
-        securely for your records — they are not yet read by the generator.
+        Upload a previous timetable (image, PDF, or Excel) and let AI read out the
+        teachers, their subjects, and the classes they teach — then import them in one click.
       </p>
 
       <div className="space-y-4">
@@ -158,15 +197,62 @@ export const PastTimetableUpload = () => {
                       {new Date(upload.uploaded_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(upload.id, upload.file_url)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                      disabled={extractingId !== null || importing}
+                      onClick={() => handleExtract(upload)}
+                    >
+                      {extractingId === upload.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                      Extract teachers
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(upload.id, upload.file_url)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {extracted && extracted.length > 0 && (
+          <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              <h4 className="text-sm font-semibold">
+                Found {extracted.length} teacher{extracted.length === 1 ? "" : "s"}
+              </h4>
+            </div>
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {extracted.map((t, i) => (
+                <div key={i} className="rounded-md border bg-card p-2 text-xs">
+                  <div className="font-semibold text-foreground">{t.name}</div>
+                  <div className="text-muted-foreground">{t.subjects.join(", ") || "No subjects detected"}</div>
+                  <div className="mt-0.5 text-muted-foreground">
+                    {(t.classes || []).map((c) => `Grade ${c.grade} ${c.stream}`).join(" · ") || "No classes detected"}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" className="gap-1" disabled={importing} onClick={handleImport}>
+                {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Import {extracted.length} teacher{extracted.length === 1 ? "" : "s"}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={importing} onClick={() => setExtracted(null)}>
+                Dismiss
+              </Button>
             </div>
           </div>
         )}
