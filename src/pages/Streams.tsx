@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/friendlyError";
 import { getCurrentSchoolSession } from "@/lib/session";
 import { advanceSchoolOnboardingTour } from "@/lib/onboardingTour";
 import {
@@ -115,7 +116,7 @@ const Streams = () => {
       setShowForm(false);
       refreshStreams();
     } catch (error: any) {
-      toast.error(error.message || "Failed to create streams");
+      toast.error(friendlyError(error, "Failed to create streams"));
     } finally {
       setLoading(false);
     }
@@ -128,7 +129,7 @@ const Streams = () => {
       toast.success("Stream deleted");
       refreshStreams();
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete stream");
+      toast.error(friendlyError(error, "Failed to delete stream"));
     }
   };
 
@@ -141,7 +142,7 @@ const Streams = () => {
       setStreamToDelete(null);
       await refreshStreams();
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete streams");
+      toast.error(friendlyError(error, "Failed to delete streams"));
     }
   };
 

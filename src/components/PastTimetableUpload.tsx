@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/friendlyError";
 import { Upload, FileText, Trash2, Loader2 } from "lucide-react";
 import { useEffect } from "react";
 import { getCurrentSchoolSession } from "@/lib/session";
@@ -77,7 +78,7 @@ export const PastTimetableUpload = () => {
       toast.success("Past timetable uploaded successfully");
       fetchUploads();
     } catch (error: any) {
-      toast.error(error.message || "Failed to upload file");
+      toast.error(friendlyError(error, "Failed to upload file"));
     } finally {
       setUploading(false);
     }
@@ -107,7 +108,7 @@ export const PastTimetableUpload = () => {
       toast.success("File deleted");
       fetchUploads();
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete file");
+      toast.error(friendlyError(error, "Failed to delete file"));
     }
   };
 
