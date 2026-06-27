@@ -1,26 +1,29 @@
-import { Component, type ReactNode } from "react";
+import { Component, lazy, Suspense, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Teachers from "./pages/Teachers";
-import Streams from "./pages/Streams";
-import Timetables from "./pages/Timetables";
-import Billing from "./pages/Billing";
-import NotFound from "./pages/NotFound";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminUsers from "./pages/admin/AdminUsers";
-import AdminSchools from "./pages/admin/AdminSchools";
-import AdminSchoolDetail from "./pages/admin/AdminSchoolDetail";
-import AdminTemplates from "./pages/admin/AdminTemplates";
-import AdminTemplateEditor from "./pages/admin/AdminTemplateEditor";
-import AdminTimetables from "./pages/admin/AdminTimetables";
-import AdminBilling from "./pages/admin/AdminBilling";
+import Index from "./pages/Index"; // landing page stays eager for fast first paint
+
+// Route-level code splitting: each page (and its heavy deps — jspdf/html2canvas/
+// xlsx in Timetables, recharts in admin) loads only when its route is visited.
+const Auth = lazy(() => import("./pages/Auth"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Teachers = lazy(() => import("./pages/Teachers"));
+const Streams = lazy(() => import("./pages/Streams"));
+const Timetables = lazy(() => import("./pages/Timetables"));
+const Billing = lazy(() => import("./pages/Billing"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminSchools = lazy(() => import("./pages/admin/AdminSchools"));
+const AdminSchoolDetail = lazy(() => import("./pages/admin/AdminSchoolDetail"));
+const AdminTemplates = lazy(() => import("./pages/admin/AdminTemplates"));
+const AdminTemplateEditor = lazy(() => import("./pages/admin/AdminTemplateEditor"));
+const AdminTimetables = lazy(() => import("./pages/admin/AdminTimetables"));
+const AdminBilling = lazy(() => import("./pages/admin/AdminBilling"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +82,13 @@ const App = () => {
 
         <AppErrorBoundary>
           <BrowserRouter>
+            <Suspense
+              fallback={
+                <div className="flex min-h-screen items-center justify-center bg-background">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              }
+            >
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth isSignUp={false} />} />
@@ -101,6 +111,7 @@ const App = () => {
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </AppErrorBoundary>
       </TooltipProvider>

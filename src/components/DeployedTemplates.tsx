@@ -72,7 +72,7 @@ export const DeployedTemplates = () => {
             {template.type === 'graphical' ? (
               <div className="space-y-2">
                 <div className="grid grid-cols-7 gap-1">
-                  {(template.structure_config?.subjects || template.content?.days || []).map((day: string, dayIndex: number) => (
+                  {(((template.structure_config as Record<string, unknown> | null)?.subjects as string[] | undefined) || template.content?.days || []).map((day: string, dayIndex: number) => (
                     <div
                       key={dayIndex}
                       className="text-xs font-medium p-1 bg-primary/10 rounded text-center"

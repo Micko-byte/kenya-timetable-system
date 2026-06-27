@@ -35,7 +35,7 @@ function hydrateTemplate(row: TemplateRow): Template {
 }
 
 function buildTemplatePayload(
-  templateData: Partial<Template> & { name?: string },
+  templateData: TemplateInput,
   existing?: TemplateRow
 ): TemplateInsert {
   const content = asObject(templateData.content ?? existing?.structure_config);
@@ -78,6 +78,18 @@ export type Template = TemplateRow & {
   usage_count?: number | null;
 };
 
+// Loose input for create/update: callers pass structured objects for
+// structure_config / break_config / content that get serialized to Json here.
+export type TemplateInput = Partial<
+  Omit<Template, "structure_config" | "break_config" | "content" | "rules">
+> & {
+  name?: string;
+  structure_config?: unknown;
+  break_config?: unknown;
+  content?: unknown;
+  rules?: unknown;
+};
+
 export interface UploadedImage {
   id: string;
   file_url: string;
@@ -89,7 +101,7 @@ export interface UploadedImage {
 
 export const templatesApi = {
   // Create a new template
-  async createTemplate(templateData: Omit<Template, "id" | "created_at" | "updated_at" | "created_by">) {
+  async createTemplate(templateData: TemplateInput) {
     try {
       const payload = buildTemplatePayload(templateData);
       const { data, error } = await supabase
@@ -107,7 +119,7 @@ export const templatesApi = {
   },
 
   // Update an existing template
-  async updateTemplate(id: string, templateData: Partial<Template>) {
+  async updateTemplate(id: string, templateData: TemplateInput) {
     try {
       const { data: existing, error: existingError } = await supabase
         .from("templates")

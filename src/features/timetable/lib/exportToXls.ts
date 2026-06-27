@@ -1,8 +1,9 @@
-import * as XLSX from 'xlsx';
 import {
   TimetableGrid, DAYS, PeriodSlot, getSubjectColor,
   SUBJECT_HEX_COLORS, SubjectKey,
 } from './timetableData';
+// xlsx (~430 kB) is dynamically imported inside the export fn so it only loads
+// when the user actually exports to Excel.
 
 function hexToArgb(hex: string): string {
   return 'FF' + hex.replace('#', '');
@@ -19,14 +20,16 @@ function contrastText(hex: string): string {
   return lum > 0.55 ? '000000' : 'FFFFFF';
 }
 
-export function exportTimetableToXls(
+export async function exportTimetableToXls(
   grid: TimetableGrid,
   schoolName: string,
   className: string,
   term: string,
   year: string,
   periods?: PeriodSlot[],
-) {
+): Promise<void> {
+  const XLSX = await import('xlsx');
+
   const activePeriods = periods ?? grid[0]?.map((_, i) => ({
     time: `Period ${i + 1}`,
     label: `P${i + 1}`,

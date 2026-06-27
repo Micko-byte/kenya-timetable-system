@@ -467,7 +467,9 @@ export type Database = {
           rules: Json | null
           school_type: string
           start_time: string
+          status: string
           structure_config: Json
+          type: string
           updated_at: string | null
           usage_count: number | null
         }
@@ -488,7 +490,9 @@ export type Database = {
           rules?: Json | null
           school_type: string
           start_time?: string
+          status?: string
           structure_config: Json
+          type?: string
           updated_at?: string | null
           usage_count?: number | null
         }
@@ -509,7 +513,9 @@ export type Database = {
           rules?: Json | null
           school_type?: string
           start_time?: string
+          status?: string
           structure_config?: Json
+          type?: string
           updated_at?: string | null
           usage_count?: number | null
         }
