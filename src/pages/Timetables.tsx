@@ -162,19 +162,17 @@ function pickTeacherForSubject(
       teacher.assignedStreamIds.includes(stream.id) &&
       teacher.subjects.some((teacherSubject) => normalizeText(teacherSubject) === normalizeText(subject)),
   );
-  const generalMatches = teachers.filter((teacher) =>
-    teacher.subjects.some((teacherSubject) => normalizeText(teacherSubject) === normalizeText(subject)),
-  );
-
-  const candidateTeachers = [...exactMatches, ...assignedMatches, ...generalMatches].filter(
+  // A teacher only ever teaches streams they are ALLOCATED to — either via an
+  // explicit subject↔class link, or by being assigned to the stream and teaching
+  // the subject. We deliberately DO NOT fall back to "any teacher of this
+  // subject", so a teacher added for one class never leaks into another.
+  const candidateTeachers = [...exactMatches, ...assignedMatches].filter(
     (teacher, index, list) => list.findIndex((item) => item.id === teacher.id) === index,
   );
 
   const scoredCandidates = candidateTeachers
     .map((teacher) => {
-      const priority =
-        exactMatches.some((item) => item.id === teacher.id) ? 0 :
-        assignedMatches.some((item) => item.id === teacher.id) ? 1 : 2;
+      const priority = exactMatches.some((item) => item.id === teacher.id) ? 0 : 1;
 
       const score = scoreTeacherCandidate(teacher, priority, dayIdx, teacherCalendar, periodsPerDay);
       if (!score) return null;
@@ -309,10 +307,10 @@ function buildStreamGrid(
   activeLevel: ActiveLevel,
   teacherCalendar: TeacherCalendar,
 ): TimetableGrid {
-  // Only ever place subjects a real teacher can teach — never inject curriculum
-  // subjects the school has no staff for. Prefer subjects explicitly linked to
-  // this stream, then subjects of teachers assigned to it, then any teacher's
-  // subjects as a last resort.
+  // A stream's subjects come ONLY from teachers allocated to THIS stream —
+  // either via an explicit subject↔class link, or by being assigned to the
+  // stream. We never borrow subjects from unrelated teachers, so nothing the
+  // school hasn't staffed for this class can appear (and no teacher leaks in).
   const linkedSubjects = teachers.flatMap((teacher) =>
     teacher.subjectClassLinks
       .filter((link) => link.streamId === stream.id)
@@ -321,15 +319,8 @@ function buildStreamGrid(
   const assignedTeacherSubjects = teachers.flatMap((teacher) =>
     teacher.assignedStreamIds.includes(stream.id) ? teacher.subjects : [],
   );
-  const generalTeacherSubjects = teachers.flatMap((teacher) => teacher.subjects);
 
-  const subjectSource =
-    linkedSubjects.length > 0
-      ? linkedSubjects
-      : assignedTeacherSubjects.length > 0
-        ? assignedTeacherSubjects
-        : generalTeacherSubjects;
-  const subjectPool = Array.from(new Set(subjectSource.filter(Boolean)));
+  const subjectPool = Array.from(new Set([...linkedSubjects, ...assignedTeacherSubjects].filter(Boolean)));
 
   // Start from a correctly-sized blank grid (honors the configured days).
   const grid: TimetableGrid = days.map(() => periods.map(() => ({ subject: '', teacher: '' })));
