@@ -522,7 +522,9 @@ const Timetables = () => {
       setTeachers(formattedTeachers);
       setIsSubscribed(subData?.status === 'active');
       setUsageCount(count || 0);
-      setGenerationLocked(hasRecordedPlanGeneration(profile.school_id));
+      // Generation cap is now enforced server-side (consume_generation), so the
+      // old localStorage "lock after first generate" no longer applies.
+      setGenerationLocked(false);
 
       if ((streamsData || []).length > 0) {
         const initialStream = (streamsData || [])[0] as StreamRecord;
@@ -947,7 +949,6 @@ const Timetables = () => {
     const selectedPlan = getSelectedFrontendPlan(schoolId) || 'payg';
     const generationSnapshot = buildPricingSnapshot(selectedPlan, teachers.length, streams.length);
     recordPlanGeneration(generationSnapshot, schoolId);
-    setGenerationLocked(true);
     setShowGenerationPricingPopup(false);
     if (schoolId) {
       advanceSchoolOnboardingTour(schoolId);
@@ -956,75 +957,37 @@ const Timetables = () => {
     window.setTimeout(() => setIsGenerating(false), 300);
     toast({
       title: 'Timetables generated',
-      description: `Your stream timetables are ready for review and export.${selectedPlan === 'payg' ? ` Pay-As-You-Go charge: KES ${generationSnapshot.calculated_price.toLocaleString()} (paid).` : ' This generation is covered by your selected plan.'}`,
+      description: 'Your stream timetables are ready for review and export.',
     });
   };
 
   const confirmGenerate = async () => {
-    const selectedPlan = getSelectedFrontendPlan(schoolId) || 'payg';
+    setShowGenerationPricingPopup(false);
+    setIsGenerating(true);
 
-    // Pay-As-You-Go: charge for THIS generation before generating. Paid
-    // subscribers (basic/premium) skip payment and generate directly.
-    if (selectedPlan === 'payg' && !isSubscribed) {
-      const { paygPrice } = calculatePricing(teachers.length, streams.length);
-      if (paygPrice <= 0) {
-        toast({ title: 'Nothing to charge', description: 'Add teachers and streams first.', variant: 'destructive' });
-        return;
-      }
-      if (!schoolId || !schoolEmail) {
-        toast({ title: 'Account still loading', description: 'Please wait a moment and try again.', variant: 'destructive' });
-        return;
-      }
-
-      try {
-        setIsGenerating(true);
-        const init = await paystackApi.initializePayment({
-          schoolId,
-          schoolName,
-          email: schoolEmail,
-          planType: 'payg',
-          amount: paygPrice * 100,
-          paymentChannel: 'card',
-          callbackUrl: `${window.location.origin}${window.location.pathname}`,
-          teachersCount: teachers.length,
-          streamsCount: streams.length,
-        });
-        if (!init.access_code) {
-          throw new Error('Paystack did not return an access code.');
+    // Server-enforced free trial: a free school gets a limited number of
+    // generations, then must subscribe. Paid plans are unlimited. The cap lives
+    // in Postgres (consume_generation) so it can't be bypassed from the UI.
+    if (schoolId) {
+      const { error } = await supabase.rpc('consume_generation', { p_school_id: schoolId });
+      if (error) {
+        const message = error.message || '';
+        if (message.includes('FREE_LIMIT')) {
+          setIsGenerating(false);
+          toast({
+            title: 'Free trial used up',
+            description: message.replace('FREE_LIMIT: ', ''),
+            variant: 'destructive',
+          });
+          setShowPaymentDialog(true);
+          return;
         }
-        await paystackApi.openInlineCheckout(init.access_code, {
-          onSuccess: async (reference) => {
-            try {
-              const verification = await paystackApi.verifyPayment(reference || init.reference);
-              if (verification.status === 'success' || verification.subscription_status === 'active') {
-                runGeneration();
-              } else {
-                setIsGenerating(false);
-                toast({ title: 'Payment processing', description: 'We could not confirm the payment yet. Your timetable will be ready once it is confirmed.', variant: 'destructive' });
-              }
-            } catch (error) {
-              setIsGenerating(false);
-              toast({ title: 'Verification issue', description: friendlyError(error, 'Could not verify the payment.'), variant: 'destructive' });
-            }
-          },
-          onCancel: () => {
-            setIsGenerating(false);
-            toast({ title: 'Payment cancelled', description: 'No timetable was generated — you were not charged.' });
-          },
-          onError: (error) => {
-            setIsGenerating(false);
-            toast({ title: 'Payment error', description: friendlyError(error, 'Checkout failed.'), variant: 'destructive' });
-          },
-        });
-      } catch (error) {
-        setIsGenerating(false);
-        toast({ title: 'Could not start payment', description: friendlyError(error, 'Please try again.'), variant: 'destructive' });
+        // Any other error (e.g. the SQL function isn't deployed yet) — fail open
+        // so generation keeps working; just log it.
+        console.warn('consume_generation:', message);
       }
-      return;
     }
 
-    // Subscribed or on a termly plan: generate directly.
-    setIsGenerating(true);
     runGeneration();
   };
 
