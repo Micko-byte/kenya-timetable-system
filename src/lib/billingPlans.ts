@@ -11,14 +11,16 @@ export interface BillingPlan {
 
 export const BILLING_PLANS: Record<BillingPlanType, BillingPlan> = {
   starter: {
-    name: "Basic",
-    amount: 50000,
+    name: "Term Plan",
+    amount: 79900,
     period: "per term",
-    description: "A term-based plan for schools within standard staffing limits.",
+    description: "Best for mid-size schools needing unlimited regenerations throughout the term.",
     features: [
-      "Up to 33 teachers included",
-      "Up to 27 streams included",
-      "Unlimited timetable generations within the term",
+      "Up to 40 teachers",
+      "Up to 30 streams",
+      "Unlimited regenerations",
+      "PDF, Excel & PNG export",
+      "Priority support",
     ],
   },
   growth: {
@@ -29,16 +31,17 @@ export const BILLING_PLANS: Record<BillingPlanType, BillingPlan> = {
     features: ["Legacy pricing support", "Existing account continuity"],
   },
   international: {
-    name: "Premium",
-    amount: 249900,
-    period: "per term",
-    description: "Best for larger schools that need unlimited access and upgrades.",
+    name: "Annual Plan",
+    amount: 349900,
+    period: "per year",
+    description: "Ideal for large schools wanting the full platform all year with no per-term billing.",
     features: [
       "Unlimited teachers",
       "Unlimited streams",
-      "Unlimited timetable generations",
-      "Master timetable access",
-      "Early access to system upgrades",
+      "Unlimited regenerations",
+      "Master timetable view",
+      "Early access to upgrades",
+      "All export formats",
     ],
   },
 };

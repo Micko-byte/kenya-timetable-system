@@ -11,15 +11,15 @@ const corsHeaders = {
 type PaystackPlanType = "starter" | "growth" | "international" | "payg";
 
 const PLAN_AMOUNTS: Record<"starter" | "growth" | "international", number> = {
-  starter: 50000,
-  growth: 750000,
-  international: 249900,
+  starter: 79900, // KES 799 per term
+  growth: 750000, // Legacy plan, unchanged
+  international: 349900, // KES 3,499 per year
 };
 
 const PLAN_EXPIRES_IN_DAYS: Record<"starter" | "growth" | "international", number> = {
   starter: 90, // Termly (approx 3 months)
   growth: 90,
-  international: 90,
+  international: 365, // Annual
 };
 
 serve(async (req) => {

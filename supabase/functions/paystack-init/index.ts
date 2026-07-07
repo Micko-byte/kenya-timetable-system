@@ -12,15 +12,13 @@ type PaystackPlanType = "starter" | "growth" | "international" | "payg";
 type PaymentChannel = "card" | "mobile_money";
 
 const PLAN_AMOUNTS: Record<"starter" | "growth" | "international", number> = {
-  starter: 50000,
-  growth: 750000,
-  international: 249900,
+  starter: 79900, // KES 799 per term
+  growth: 750000, // Legacy plan, unchanged
+  international: 349900, // KES 3,499 per year
 };
 
-// Pay-As-You-Go is priced server-side from the school's size (KES per item),
-// so the client can never set an arbitrary price.
-const PAYG_TEACHER_RATE = 8;
-const PAYG_STREAM_RATE = 11;
+// Pay-As-You-Go is a flat price per timetable generation.
+const PAYG_AMOUNT = 20000; // KES 200
 
 const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
 
@@ -43,9 +41,6 @@ serve(async (req) => {
     const email = String(payload.email || "");
     const phone = String(payload.phone || "");
     const planType = String(payload.planType || "") as PaystackPlanType;
-    const requestedAmount = Number(payload.amount || 0);
-    const teachersCount = Math.max(0, Math.floor(Number(payload.teachersCount || 0)));
-    const streamsCount = Math.max(0, Math.floor(Number(payload.streamsCount || 0)));
     const paymentChannel = String(payload.paymentChannel || "card") as PaymentChannel;
     const callbackUrl = String(payload.callbackUrl || "");
 
@@ -53,25 +48,16 @@ serve(async (req) => {
       throw new Error("Missing checkout details.");
     }
 
-    // Resolve the amount to charge (in cents). PAYG is computed server-side from
-    // the school size; fixed plans must exactly match their published price.
+    // Resolve the amount to charge (in cents). The backend is the single source
+    // of truth for pricing, so the client can never influence the amount.
     let chargeAmount: number;
     if (planType === "payg") {
-      chargeAmount = (teachersCount * PAYG_TEACHER_RATE + streamsCount * PAYG_STREAM_RATE) * 100;
-      if (!Number.isFinite(chargeAmount) || chargeAmount <= 0) {
-        throw new Error("Add teachers and streams before paying for a generation.");
-      }
+      chargeAmount = PAYG_AMOUNT;
     } else {
       if (!(planType in PLAN_AMOUNTS)) {
         throw new Error("Invalid plan type.");
       }
-      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
-        throw new Error("Missing plan amount.");
-      }
-      if (requestedAmount !== PLAN_AMOUNTS[planType as keyof typeof PLAN_AMOUNTS]) {
-        throw new Error("Plan amount does not match the selected billing plan.");
-      }
-      chargeAmount = requestedAmount;
+      chargeAmount = PLAN_AMOUNTS[planType as keyof typeof PLAN_AMOUNTS];
     }
 
     const safeCallbackUrl = callbackUrl || undefined;
