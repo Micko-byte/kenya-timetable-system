@@ -7,7 +7,7 @@ import {
   Building2,
   Users,
   Clock,
-  Sparkles,
+  Workflow,
   PencilLine,
   Share2,
 } from "lucide-react";
@@ -117,7 +117,7 @@ const HOW_IT_WORKS_STEPS = [
   {
     title: "Generate the timetable",
     description: "Run the timetable engine once your data is ready. ElimuTime builds a clash-free schedule automatically.",
-    icon: Sparkles,
+    icon: Workflow,
     iconBg: "bg-primary",
   },
   {
@@ -340,35 +340,45 @@ Create complete, conflict-free timetables in minutes. Manage teachers, classroom
 <section className="relative flex items-center justify-center overflow-hidden bg-transparent py-12">
   <div className="container relative z-10 mx-auto px-4 py-20">
     <div className="rounded-[2rem] border border-white/10 bg-[#0A1628] p-10 md:p-14">
-
       <div className="mb-6 flex items-center justify-center">
-        <span className="text-xs font-bold uppercase tracking-[0.25em] text-primary">The Evolution</span>
       </div>
 
       <div className="mx-auto max-w-3xl text-center">
         <h2 className="text-4xl font-bold leading-[1.15] text-white md:text-5xl">
           From spreadsheet chaos to
-          <span className="mt-2 block text-primary">intelligent timetabling</span>
+          <span className="mt-2 block text-primary">
+            intelligent timetabling
+          </span>
         </h2>
+
         <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-white/50">
-          Schools don't just need a timetable — they need a living system that adapts daily, prevents
-          conflicts, and keeps every stakeholder informed.
+          Schools don't just need a timetable. They need a living system that
+          adapts daily, prevents conflicts, and keeps every stakeholder informed.
         </p>
       </div>
 
       <div className="mt-16 grid gap-5 md:grid-cols-2">
         {/* Excel column */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8">
+        <div className="rounded-2xl border border-gray-200 bg-white p-8">
           <div className="mb-6 flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/15">
               <X className="h-5 w-5 text-rose-400" />
             </div>
-            <span className="text-xs font-bold uppercase tracking-[0.15em] text-rose-400">Traditional</span>
+
+            <span className="text-xs font-bold uppercase tracking-[0.15em] text-rose-500">
+              Traditional
+            </span>
           </div>
-          <h3 className="mb-2 text-xl font-semibold text-white">Excel & Manual</h3>
-          <p className="text-sm leading-relaxed text-white/40">
-            Two to three weeks of edits, whiteboards, spreadsheets, and late-night adjustments.
+
+          <h3 className="mb-2 text-xl font-semibold text-black">
+            Excel & Manual
+          </h3>
+
+          <p className="text-sm leading-relaxed text-black">
+            Two to three weeks of edits, whiteboards, spreadsheets, and
+            late-night adjustments.
           </p>
+
           <div className="mt-6 space-y-3">
             {[
               "Teacher clashes discovered Monday morning",
@@ -377,8 +387,11 @@ Create complete, conflict-free timetables in minutes. Manage teachers, classroom
               "Frantic 6am substitute phone calls",
               "Photocopies pinned to noticeboards",
             ].map((item) => (
-              <div key={item} className="flex items-start gap-3 text-sm text-white/40">
-                <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-rose-400/60" />
+              <div
+                key={item}
+                className="flex items-start gap-3 text-sm text-black"
+              >
+                <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-rose-400/70" />
                 <span>{item}</span>
               </div>
             ))}
@@ -386,17 +399,26 @@ Create complete, conflict-free timetables in minutes. Manage teachers, classroom
         </div>
 
         {/* ElimuTime column */}
-        <div className="rounded-2xl border border-primary/30 bg-primary/[0.06] p-8">
+        <div className="rounded-2xl border border-primary/20 bg-white p-8">
           <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/20">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15">
               <Check className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-xs font-bold uppercase tracking-[0.15em] text-primary">ElimuTime</span>
+
+            <span className="text-xs font-bold uppercase tracking-[0.15em] text-primary">
+              ElimuTime
+            </span>
           </div>
-          <h3 className="mb-2 text-xl font-semibold text-white">Intelligent System</h3>
-          <p className="text-sm leading-relaxed text-white/60">
-            Generates a complete timetable automatically and refines it when needed, in minutes.
+
+          <h3 className="mb-2 text-xl font-semibold text-black">
+            Intelligent System
+          </h3>
+
+          <p className="text-sm leading-relaxed text-black">
+            Generates a complete timetable automatically and refines it when
+            needed, in minutes.
           </p>
+
           <div className="mt-6 space-y-3">
             {[
               "Clashes caught and resolved before publishing",
@@ -405,7 +427,10 @@ Create complete, conflict-free timetables in minutes. Manage teachers, classroom
               "Ranked substitute list, one tap away",
               "Pushed instantly to all stakeholders",
             ].map((item) => (
-              <div key={item} className="flex items-start gap-3 text-sm text-white/60">
+              <div
+                key={item}
+                className="flex items-start gap-3 text-sm text-black"
+              >
                 <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
                 <span>{item}</span>
               </div>
@@ -416,20 +441,46 @@ Create complete, conflict-free timetables in minutes. Manage teachers, classroom
 
       {/* Metrics */}
       <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
-          <div className="text-3xl font-bold text-primary md:text-4xl">Minutes</div>
-          <div className="mt-1 text-sm text-white/50">to generate a timetable</div>
-          <div className="mt-2 text-xs text-white/30">vs 2–3 weeks manually</div>
+        <div className="rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <div className="text-3xl font-bold text-primary md:text-4xl">
+            Minutes
+          </div>
+
+          <div className="mt-1 text-sm text-black">
+            to generate a timetable
+          </div>
+
+          <div className="mt-2 text-xs text-black">
+            vs 2–3 weeks manually
+          </div>
         </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
-          <div className="text-3xl font-bold text-secondary md:text-4xl">100%</div>
-          <div className="mt-1 text-sm text-white/50">clash-free guarantee</div>
-          <div className="mt-2 text-xs text-white/30">automated conflict resolution</div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <div className="text-3xl font-bold text-secondary md:text-4xl">
+            100%
+          </div>
+
+          <div className="mt-1 text-sm text-black">
+            clash-free guarantee
+          </div>
+
+          <div className="mt-2 text-xs text-black">
+            automated conflict resolution
+          </div>
         </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
-          <div className="text-3xl font-bold text-accent md:text-4xl">Real-time</div>
-          <div className="mt-1 text-sm text-white/50">updates across the school</div>
-          <div className="mt-2 text-xs text-white/30">instant notifications to all</div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <div className="text-3xl font-bold text-accent md:text-4xl">
+            Real-time
+          </div>
+
+          <div className="mt-1 text-sm text-black">
+            updates across the school
+          </div>
+
+          <div className="mt-2 text-xs text-black">
+            instant notifications to all
+          </div>
         </div>
       </div>
 
@@ -443,7 +494,6 @@ Create complete, conflict-free timetables in minutes. Manage teachers, classroom
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>
-
     </div>
   </div>
 </section>

@@ -58,11 +58,11 @@ export function calculatePricing(teachersCount: number, streamsCount: number) {
   const teachers = Math.max(0, teachersCount);
   const streams = Math.max(0, streamsCount);
   const paygPrice = teachers * 8 + streams * 11;
-  const extraTeachers = Math.max(0, teachers - 33);
-  const extraStreams = Math.max(0, streams - 27);
-  const basicBasePrice = 500;
+  const extraTeachers = Math.max(0, teachers - 40);
+  const extraStreams = Math.max(0, streams - 30);
+  const basicBasePrice = 799;
   const basicPrice = basicBasePrice + extraTeachers * 5 + extraStreams * 8;
-  const premiumPrice = 2499;
+  const premiumPrice = 3499;
 
   return {
     paygPrice,

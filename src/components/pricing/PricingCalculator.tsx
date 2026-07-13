@@ -25,10 +25,12 @@ const PLANS = [
     name: "Basic",
     description: "A term-based plan for schools within standard staffing limits.",
     features: [
-      "KES 500 per term",
-      "Up to 33 teachers included",
-      "Up to 27 streams included",
+      "KES 799 per term",
+      "Up to 40 teachers included",
+      "Up to 30 streams included",
       "Unlimited timetable generations within the term",
+      "PDF, Excel & PNG export",
+      "Priority support",
     ],
     color: "orange",
   },
@@ -40,8 +42,9 @@ const PLANS = [
       "Unlimited teachers",
       "Unlimited streams",
       "Unlimited timetable generations",
-      "Master timetable access",
+      "Master timetable view",
       "Early access to system upgrades",
+      "All export formats",
     ],
     color: "blue",
   },
@@ -232,16 +235,19 @@ export const PricingCalculator = ({
 
                 <div className="mb-6 rounded-3xl border border-primary/10 bg-white/70 px-4 py-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    {plan.type === "payg" ? "Per generation" : "Per term"}
+                    {plan.type === "payg" ? "Per generation" : plan.type === "premium" ? "Per year" : "Per term"}
                   </p>
                   <p className={cn("mt-2 text-4xl font-bold", accent.price)}>{formatPrice(price)}</p>
+                  {plan.type === "basic" && !pricing.basicHasOverage && (
+                    <p className="mt-2 text-xs text-muted-foreground">Up to 40 teachers & 30 streams</p>
+                  )}
                   {plan.type === "basic" && pricing.basicHasOverage && (
                     <p className="mt-2 text-xs text-muted-foreground">
                       Includes KES {pricing.basicBasePrice.toLocaleString()} base price plus extra teachers and streams.
                     </p>
                   )}
                   {plan.type === "premium" && (
-                    <p className="mt-2 text-xs text-muted-foreground">Fixed price with unlimited school capacity.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Unlimited teachers & streams</p>
                   )}
                 </div>
 
