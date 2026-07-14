@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Trash2, Shield, User, Mail, Calendar, Building2 } from "lucide-react";
+import { Search, Trash2, Shield, User, Mail, Calendar, Building2, Pencil } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +17,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+
+const ADMIN_EMAIL = "leemwangi250@gmail.com";
 
 interface UserProfile {
   id: string;
@@ -26,7 +36,27 @@ interface UserProfile {
   created_at: string;
   school_id: string;
   schools: { name: string };
-  user_roles: { role: string }[];
+}
+
+/** Calls the admin-user-action edge function with the caller's session token. */
+async function callAdminAction(action: "update" | "delete", payload: Record<string, unknown>) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error("Your session expired. Please sign in again.");
+
+  const { data, error } = await supabase.functions.invoke("admin-user-action", {
+    body: { action, ...payload },
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  if (error) {
+    // Surface the function's own error message when present.
+    const detail = (data as { error?: string } | null)?.error;
+    throw new Error(detail || error.message || "Action failed.");
+  }
+  if ((data as { error?: string } | null)?.error) {
+    throw new Error((data as { error?: string }).error);
+  }
 }
 
 const AdminUsers = () => {
@@ -34,6 +64,9 @@ const AdminUsers = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editUser, setEditUser] = useState<UserProfile | null>(null);
+  const [editName, setEditName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -43,23 +76,7 @@ const AdminUsers = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-
-      // Fetch user roles separately
-      const usersWithRoles = await Promise.all(
-        (profiles || []).map(async (profile) => {
-          const { data: roles } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", profile.id);
-
-          return {
-            ...profile,
-            user_roles: roles || [],
-          };
-        })
-      );
-
-      setUsers(usersWithRoles as UserProfile[]);
+      setUsers((profiles || []) as UserProfile[]);
     } catch (error: any) {
       toast.error("Failed to load users: " + error.message);
     } finally {
@@ -75,15 +92,38 @@ const AdminUsers = () => {
     if (!deleteId) return;
 
     try {
-      const { error } = await supabase.auth.admin.deleteUser(deleteId);
-      if (error) throw error;
-
+      await callAdminAction("delete", { userId: deleteId });
       toast.success("User deleted successfully");
       fetchUsers();
     } catch (error: any) {
       toast.error("Failed to delete user: " + error.message);
     } finally {
       setDeleteId(null);
+    }
+  };
+
+  const openEdit = (user: UserProfile) => {
+    setEditUser(user);
+    setEditName(user.full_name || "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editUser) return;
+    if (!editName.trim()) {
+      toast.error("Name cannot be empty");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await callAdminAction("update", { userId: editUser.id, fullName: editName.trim() });
+      toast.success("User updated");
+      setEditUser(null);
+      fetchUsers();
+    } catch (error: any) {
+      toast.error("Failed to update user: " + error.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -185,7 +225,7 @@ const AdminUsers = () => {
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center float">
                           <User className="w-8 h-8 text-white" />
                         </div>
-                        {user.user_roles?.[0]?.role === "admin" && (
+                        {user.email === ADMIN_EMAIL && (
                           <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
                             <Shield className="w-3 h-3 mr-1" />
                             Admin
@@ -218,16 +258,26 @@ const AdminUsers = () => {
                       </div>
 
                       {/* Actions */}
-                      <div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => openEdit(user)}
+                          disabled={user.email === ADMIN_EMAIL}
+                        >
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
                         <Button
                           variant="destructive"
                           size="sm"
-                          className="w-full"
+                          className="flex-1"
                           onClick={() => setDeleteId(user.id)}
-                          disabled={user.user_roles?.[0]?.role === "admin"}
+                          disabled={user.email === ADMIN_EMAIL}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Delete User
+                          Delete
                         </Button>
                       </div>
                     </div>
@@ -237,6 +287,38 @@ const AdminUsers = () => {
             </AnimatePresence>
           </motion.div>
         )}
+
+        {/* Edit User */}
+        <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Full name</Label>
+                <Input
+                  id="edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Full name"
+                />
+              </div>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>Email: {editUser?.email}</p>
+                <p>School: {editUser?.schools?.name || "No School Assigned"}</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditUser(null)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={saving}>
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Delete Confirmation */}
         <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>

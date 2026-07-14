@@ -96,6 +96,12 @@ const AdminDashboard = () => {
   const [recentUploads, setRecentUploads] = useState<RecentUpload[]>([]);
   const [recentStreams, setRecentStreams] = useState<RecentStream[]>([]);
   const [schoolsWithTemplates, setSchoolsWithTemplates] = useState<SchoolWithTemplate[]>([]);
+  const [chartData, setChartData] = useState<{
+    revenue: { month: string; mrr: number; arr: number }[];
+    subscriptions: { name: string; value: number }[];
+    activity: { day: string; count: number }[];
+    templates: { name: string; usage: number }[];
+  }>({ revenue: [], subscriptions: [], activity: [], templates: [] });
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -262,6 +268,70 @@ const AdminDashboard = () => {
 
           setSchoolsWithTemplates(schoolsData);
         }
+
+        // Real analytics for the charts (isolated so a chart error never blanks the page).
+        try {
+          const [subsRes, templatesRes, paymentsRes, weekTimetablesRes] = await Promise.all([
+            supabase.from("subscriptions").select("plan_type"),
+            supabase.from("schools").select("timetable_template"),
+            supabase.from("payment_transactions").select("amount, status, created_at").eq("status", "success"),
+            supabase.from("timetables").select("created_at").gte("created_at", weekAgo),
+          ]);
+
+          const planLabels: Record<string, string> = {
+            free_trial: "Free Trial",
+            free: "Free Trial",
+            payg: "Pay-As-You-Go",
+            starter: "Term Plan",
+            international: "Annual Plan",
+            growth: "Legacy",
+          };
+          const subCounts: Record<string, number> = {};
+          (subsRes.data || []).forEach((s: any) => {
+            const label = planLabels[s.plan_type] || s.plan_type || "Unknown";
+            subCounts[label] = (subCounts[label] || 0) + 1;
+          });
+          const subscriptions = Object.entries(subCounts).map(([name, value]) => ({ name, value }));
+
+          const tplCounts: Record<string, number> = {};
+          (templatesRes.data || []).forEach((s: any) => {
+            const label = s.timetable_template || "Classic";
+            tplCounts[label] = (tplCounts[label] || 0) + 1;
+          });
+          const templates = Object.entries(tplCounts)
+            .map(([name, usage]) => ({ name, usage }))
+            .sort((a, b) => b.usage - a.usage);
+
+          const monthKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+          const revByMonth: Record<string, number> = {};
+          (paymentsRes.data || []).forEach((p: any) => {
+            if (!p.created_at) return;
+            const d = new Date(p.created_at);
+            revByMonth[monthKey(d)] = (revByMonth[monthKey(d)] || 0) + (Number(p.amount) || 0) / 100;
+          });
+          const revenue: { month: string; mrr: number; arr: number }[] = [];
+          for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const mrr = Math.round(revByMonth[monthKey(d)] || 0);
+            revenue.push({ month: d.toLocaleString("en-US", { month: "short" }), mrr, arr: mrr * 12 });
+          }
+
+          const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const activityCounts: Record<string, number> = {};
+          (weekTimetablesRes.data || []).forEach((t: any) => {
+            if (!t.created_at) return;
+            const label = dayNames[new Date(t.created_at).getDay()];
+            activityCounts[label] = (activityCounts[label] || 0) + 1;
+          });
+          const activity = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => ({
+            day,
+            count: activityCounts[day] || 0,
+          }));
+
+          setChartData({ revenue, subscriptions, activity, templates });
+        } catch (chartError) {
+          console.warn("Failed to load chart analytics:", chartError);
+        }
       } catch (error: any) {
         toast.error("Failed to fetch dashboard data: " + error.message);
       } finally {
@@ -383,50 +453,15 @@ const AdminDashboard = () => {
         {/* Charts & Analytics Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <RevenueTrendChart
-              data={[
-                { month: "Jul", mrr: 12000, arr: 144000 },
-                { month: "Aug", mrr: 15000, arr: 180000 },
-                { month: "Sep", mrr: 18000, arr: 216000 },
-                { month: "Oct", mrr: 22000, arr: 264000 },
-                { month: "Nov", mrr: 25000, arr: 300000 },
-                { month: "Dec", mrr: 30000, arr: 360000 },
-              ]}
-            />
+            <RevenueTrendChart data={chartData.revenue} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <SubscriptionDistributionChart
-                data={[
-                  { name: "Trial", value: stats.trialSubscriptions },
-                  { name: "Basic", value: Math.floor(stats.paidSubscriptions * 0.4) },
-                  { name: "Premium", value: Math.floor(stats.paidSubscriptions * 0.35) },
-                  { name: "Enterprise", value: Math.floor(stats.paidSubscriptions * 0.25) },
-                ]}
-              />
+              <SubscriptionDistributionChart data={chartData.subscriptions} />
 
-              <TimetableActivityChart
-                data={[
-                  { day: "Mon", ai: 12, manual: 3 },
-                  { day: "Tue", ai: 15, manual: 5 },
-                  { day: "Wed", ai: 18, manual: 4 },
-                  { day: "Thu", ai: 20, manual: 6 },
-                  { day: "Fri", ai: 22, manual: 8 },
-                  { day: "Sat", ai: 10, manual: 2 },
-                  { day: "Sun", ai: 8, manual: 1 },
-                ]}
-              />
+              <TimetableActivityChart data={chartData.activity} />
             </div>
 
-            <TemplateUsageChart
-              data={[
-                { name: "Primary School", usage: 45 },
-                { name: "High School", usage: 38 },
-                { name: "International", usage: 22 },
-                { name: "University", usage: 15 },
-                { name: "College/TVET", usage: 12 },
-                { name: "Training", usage: 8 },
-              ]}
-            />
+            <TemplateUsageChart data={chartData.templates} />
           </div>
 
           <div className="lg:col-span-1">

@@ -70,18 +70,17 @@ export const TimetableActivityChart = ({ data }: { data: any[] }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Timetable Generation Activity (Daily)</CardTitle>
+        <CardTitle>Timetable Generation Activity (Last 7 Days)</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="day" />
-            <YAxis />
+            <YAxis allowDecimals={false} />
             <Tooltip />
             <Legend />
-            <Bar dataKey="ai" fill="hsl(var(--primary))" name="AI Generated" />
-            <Bar dataKey="manual" fill="hsl(var(--secondary))" name="Manual" />
+            <Bar dataKey="count" fill="hsl(var(--primary))" name="Timetables Generated" />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

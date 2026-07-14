@@ -5,7 +5,6 @@ import { PlanSelectionModal } from "@/components/pricing/PlanSelectionModal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { PastTimetableUpload } from "@/components/PastTimetableUpload";
 import { getCurrentSchoolSession } from "@/lib/session";
 import {
   hydrateSelectedFrontendPlan,
@@ -221,12 +220,6 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Uploads */}
-        <div className="grid grid-cols-1 gap-6 pb-10">
-          <div className="rounded-lg transition-all duration-300 hover:shadow-[0_0_40px_hsl(var(--secondary)/0.22)]">
-            <PastTimetableUpload />
-          </div>
-        </div>
       </div>
     </DashboardLayout>
   );
