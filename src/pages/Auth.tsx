@@ -188,34 +188,34 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
 
         setLoading(true);
 
-        const { error: createError } = await supabase.functions.invoke("auth-signup", {
-          body: {
-            email: formData.email,
-            password: formData.password,
-            fullName: formData.fullName,
-            schoolName: formData.schoolName,
-            schoolType: formData.schoolType,
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth`,
+            data: {
+              full_name: formData.fullName,
+              school_name: formData.schoolName,
+              school_type: formData.schoolType,
+            },
           },
         });
 
-        if (createError) throw createError;
+        if (signUpError) throw signUpError;
 
-        await signInWithPasswordRecovering(formData.email, formData.password);
-
-        // Check user role from database (only proceed if we have a session)
-        const { data: { user } } = await supabase.auth.getUser();
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user?.id)
-          .eq('role', 'admin')
-          .maybeSingle();
-
-        if (formData.email === "leemwangi250@gmail.com") {
-          navigate("/admin");
-        } else {
-          navigate("/dashboard");
+        // Supabase returns a user with an empty identities array when the email
+        // is already registered (to avoid leaking which emails exist).
+        if (signUpData.user && signUpData.user.identities && signUpData.user.identities.length === 0) {
+          toast.error("This email is already registered. Please sign in instead.");
+          setIsLogin(true);
+          return;
         }
+
+        // Confirmation is required, so no session is returned. The user must
+        // click the link in their inbox before they can sign in.
+        toast.success("Almost done! Check your email and click the confirmation link to activate your account.");
+        setIsLogin(true);
+        setFormData((prev) => ({ ...prev, password: "", confirmPassword: "" }));
       }
     } catch (error: any) {
       let message = "An error occurred";
