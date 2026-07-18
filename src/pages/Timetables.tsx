@@ -4,6 +4,8 @@ import { paystackApi } from '@/lib/paystack';
 import { friendlyError } from '@/lib/friendlyError';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Download,
@@ -234,50 +236,53 @@ function getSubjectWeight(subject: string): number {
   return DEFAULT_SUBJECT_WEIGHT;
 }
 
-// Distribute `slotCount` teaching slots across `subjects` proportionally to each
-// subject's weekly weight, using largest-remainder so counts sum exactly to
-// slotCount. Every subject gets at least 1 when there is room.
-// Distribute `slotCount` teaching slots across `subjects`, weighted by each
-// subject's weekly weight and capped at `maxPerSubject` (default = once per day)
-// so no subject is *forced* to repeat within a day. A greedy lowest-load/weight
-// fill keeps the spread proportional while every staffed subject appears at least
-// once when there's room.
+// Turn each subject's desired weekly periods into a concrete per-week quota.
+// The desired count comes from the school's `periods_per_week` (falling back to
+// the smart-guess weight). Each subject is hard-capped at `maxDays` so it can
+// never be forced to repeat within a day, and the total never exceeds the
+// available teaching `slotCount`. A greedy lowest-load fill keeps low-frequency
+// subjects (e.g. PE = 2/week) spread across different days instead of daily.
 function computeSubjectQuotas(
   subjects: string[],
   slotCount: number,
-  maxPerSubject = Number.POSITIVE_INFINITY,
+  periodsPerWeek: Record<string, number>,
+  maxDays: number,
 ): Record<string, number> {
   const quotas: Record<string, number> = {};
   if (subjects.length === 0 || slotCount <= 0) return quotas;
 
-  const weight: Record<string, number> = {};
+  const desired: Record<string, number> = {}; // wanted periods per week
+  const cap: Record<string, number> = {}; // hard cap = min(desired, maxDays)
   subjects.forEach((subject) => {
     quotas[subject] = 0;
-    weight[subject] = getSubjectWeight(subject);
+    const wanted = Math.max(1, Math.round(periodsPerWeek[subject] ?? getSubjectWeight(subject)));
+    desired[subject] = wanted;
+    cap[subject] = Math.max(1, Math.min(wanted, maxDays));
   });
 
-  const cap = Math.max(1, maxPerSubject);
-  const target = Math.min(slotCount, subjects.length * cap);
+  const totalCap = subjects.reduce((sum, subject) => sum + cap[subject], 0);
+  const fillTarget = Math.min(slotCount, totalCap);
   const totalAssigned = () => Object.values(quotas).reduce((sum, n) => sum + n, 0);
 
-  // One each (highest weight first) so every staffed subject shows up at least once.
+  // One each (highest desired first) so every staffed subject shows up at least once.
   [...subjects]
-    .sort((a, b) => weight[b] - weight[a])
+    .sort((a, b) => desired[b] - desired[a])
     .forEach((subject) => {
-      if (totalAssigned() < target && quotas[subject] < cap) quotas[subject] = 1;
+      if (totalAssigned() < fillTarget && quotas[subject] < cap[subject]) quotas[subject] = 1;
     });
 
-  // Fill the remainder by lowest load-to-weight ratio, never exceeding the cap.
-  while (totalAssigned() < target) {
+  // Fill the remainder by lowest load-to-desired ratio, never exceeding each
+  // subject's own cap, so a subject stops once it hits its weekly periods.
+  while (totalAssigned() < fillTarget) {
     let best: string | null = null;
     let bestRatio = Number.POSITIVE_INFINITY;
-    let bestWeight = -1;
+    let bestDesired = -1;
     for (const subject of subjects) {
-      if (quotas[subject] >= cap) continue;
-      const ratio = quotas[subject] / weight[subject];
-      if (ratio < bestRatio - 1e-9 || (Math.abs(ratio - bestRatio) < 1e-9 && weight[subject] > bestWeight)) {
+      if (quotas[subject] >= cap[subject]) continue;
+      const ratio = quotas[subject] / desired[subject];
+      if (ratio < bestRatio - 1e-9 || (Math.abs(ratio - bestRatio) < 1e-9 && desired[subject] > bestDesired)) {
         bestRatio = ratio;
-        bestWeight = weight[subject];
+        bestDesired = desired[subject];
         best = subject;
       }
     }
@@ -306,6 +311,7 @@ function buildStreamGrid(
   periods: PeriodSlot[],
   activeLevel: ActiveLevel,
   teacherCalendar: TeacherCalendar,
+  subjectPeriods: Record<string, number>,
 ): TimetableGrid {
   // A stream's subjects come ONLY from teachers allocated to THIS stream —
   // either via an explicit subject↔class link, or by being assigned to the
@@ -343,7 +349,7 @@ function buildStreamGrid(
   }
 
   // Cap each subject at once per day so quotas never force a same-day repeat.
-  const remaining = computeSubjectQuotas(subjectPool, teachingSlots.length, days.length);
+  const remaining = computeSubjectQuotas(subjectPool, teachingSlots.length, subjectPeriods, days.length);
   const placedToday: Array<Set<string>> = days.map(() => new Set<string>());
 
   // Visit slots column-major (across days first) so each subject's lessons
@@ -394,12 +400,13 @@ function buildAllStreamGrids(
   teachers: TeacherRecord[],
   days: string[],
   periods: PeriodSlot[],
+  subjectPeriods: Record<string, number>,
 ) {
   const teacherCalendar: TeacherCalendar = {};
   const orderedStreams = [...streams].sort((a, b) => a.grade - b.grade || a.stream_name.localeCompare(b.stream_name));
 
   return orderedStreams.reduce<Record<string, TimetableGrid>>((acc, stream) => {
-    acc[stream.id] = buildStreamGrid(stream, teachers, days, periods, gradeToLevel(stream.grade), teacherCalendar);
+    acc[stream.id] = buildStreamGrid(stream, teachers, days, periods, gradeToLevel(stream.grade), teacherCalendar, subjectPeriods);
     return acc;
   }, {});
 }
@@ -433,6 +440,8 @@ const Timetables = () => {
   const [generationLocked, setGenerationLocked] = useState(false);
   const [streams, setStreams] = useState<StreamRecord[]>([]);
   const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
+  const [subjectRows, setSubjectRows] = useState<Array<{ id: string; name: string; periodsPerWeek: number }>>([]);
+  const [showSubjectFreq, setShowSubjectFreq] = useState(false);
   const [schoolId, setSchoolId] = useState('');
   const [schoolEmail, setSchoolEmail] = useState('');
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
@@ -446,6 +455,17 @@ const Timetables = () => {
     () => buildPricingSnapshot(selectedGenerationPlan, teachers.length, streams.length),
     [selectedGenerationPlan, streams.length, teachers.length],
   );
+  // Subject name -> desired periods per week, used to size each subject's quota.
+  const subjectPeriods = useMemo(
+    () => Object.fromEntries(subjectRows.map((s) => [s.name, s.periodsPerWeek])),
+    [subjectRows],
+  );
+  const updateSubjectPeriods = async (id: string, value: number) => {
+    const next = Math.max(1, Math.min(Math.round(value) || 1, 12));
+    setSubjectRows((rows) => rows.map((r) => (r.id === id ? { ...r, periodsPerWeek: next } : r)));
+    const { error } = await supabase.from('subjects').update({ periods_per_week: next }).eq('id', id);
+    if (error) toast({ title: 'Could not save frequency', description: error.message, variant: 'destructive' });
+  };
 
   useEffect(() => {
     const fetchUserSchool = async () => {
@@ -477,7 +497,7 @@ const Timetables = () => {
         setSchoolName(schoolData.name);
       }
 
-      const [{ data: streamsData }, { data: teachersData }, { data: subData }, { count }] = await Promise.all([
+      const [{ data: streamsData }, { data: teachersData }, { data: subData }, { count }, { data: subjectsData }] = await Promise.all([
         supabase
           .from('streams')
           .select('id, grade, stream_name')
@@ -503,6 +523,10 @@ const Timetables = () => {
           .from('timetables')
           .select('*', { count: 'exact', head: true })
           .eq('school_id', profile.school_id),
+        supabase
+          .from('subjects')
+          .select('id, name, periods_per_week')
+          .eq('school_id', profile.school_id),
       ]);
 
       const formattedTeachers: TeacherRecord[] = (teachersData || []).map((teacher: any) => ({
@@ -520,6 +544,15 @@ const Timetables = () => {
 
       setStreams((streamsData || []) as StreamRecord[]);
       setTeachers(formattedTeachers);
+      setSubjectRows(
+        ((subjectsData as any[]) || [])
+          .map((s) => ({
+            id: s.id as string,
+            name: s.name as string,
+            periodsPerWeek: (s.periods_per_week as number | null) ?? getSubjectWeight(s.name),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      );
       setIsSubscribed(subData?.status === 'active');
       setUsageCount(count || 0);
       // Generation cap is now enforced server-side (consume_generation), so the
@@ -540,7 +573,7 @@ const Timetables = () => {
       return;
     }
 
-    const nextStreamGrids = buildAllStreamGrids(streams, teachers, days, periods);
+    const nextStreamGrids = buildAllStreamGrids(streams, teachers, days, periods, subjectPeriods);
     const nextActiveStreamId = activeStreamId || streams[0]?.id || null;
     const nextActiveStream = streams.find((stream) => stream.id === nextActiveStreamId) || streams[0];
 
@@ -558,7 +591,7 @@ const Timetables = () => {
       classes: streams.map((stream) => ({
         name: formatStreamLabel(stream),
         level: gradeToLevel(stream.grade),
-        grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, days, periods, gradeToLevel(stream.grade), {}),
+        grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, days, periods, gradeToLevel(stream.grade), {}, subjectPeriods),
         days: [...days],
         periods,
       })),
@@ -567,7 +600,7 @@ const Timetables = () => {
     if (!selectedTeacher && teachers.length > 0) {
       setSelectedTeacher(teachers[0].name);
     }
-  }, [streams, teachers, days, periods, activeStreamId, schoolName, term, year, selectedTeacher]);
+  }, [streams, teachers, days, periods, activeStreamId, schoolName, term, year, selectedTeacher, subjectPeriods]);
 
   const buildGeneratedState = useCallback(
     (nextPeriods: PeriodSlot[] = periods) => {
@@ -575,7 +608,7 @@ const Timetables = () => {
         return null;
       }
 
-      const nextStreamGrids = buildAllStreamGrids(streams, teachers, days, nextPeriods);
+      const nextStreamGrids = buildAllStreamGrids(streams, teachers, days, nextPeriods, subjectPeriods);
       const nextActiveStreamId = activeStreamId || streams[0]?.id || null;
       const nextActiveStream = streams.find((stream) => stream.id === nextActiveStreamId) || streams[0];
 
@@ -593,14 +626,14 @@ const Timetables = () => {
           classes: streams.map((stream) => ({
             name: formatStreamLabel(stream),
             level: gradeToLevel(stream.grade),
-            grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, days, nextPeriods, gradeToLevel(stream.grade), {}),
+            grid: nextStreamGrids[stream.id] || buildStreamGrid(stream, teachers, days, nextPeriods, gradeToLevel(stream.grade), {}, subjectPeriods),
             days: [...days],
             periods: nextPeriods,
           })),
         } satisfies MasterTimetable,
       };
     },
-    [activeLevel, activeStreamId, days, periods, schoolName, streams, teachers, term, year],
+    [activeLevel, activeStreamId, days, periods, schoolName, streams, teachers, term, year, subjectPeriods],
   );
 
   useEffect(() => {
@@ -1138,6 +1171,50 @@ const Timetables = () => {
                     <Maximize2 className="mr-2 h-4 w-4" />
                     Preview
                   </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSubjectFreq(true)}
+                    className="h-10 shrink-0 rounded-full px-4 text-sm"
+                  >
+                    <BookOpenCheck className="mr-2 h-4 w-4" />
+                    Subject frequency
+                  </Button>
+
+                  <Dialog open={showSubjectFreq} onOpenChange={setShowSubjectFreq}>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Subject frequency (periods / week)</DialogTitle>
+                      </DialogHeader>
+                      <p className="text-sm text-muted-foreground">
+                        Set how many periods each subject gets per week. Low numbers (e.g. PE = 2) are
+                        spread across different days instead of appearing daily. Changes save automatically
+                        and apply on the next Generate.
+                      </p>
+                      <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
+                        {subjectRows.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            No subjects yet — add subjects to your teachers first.
+                          </p>
+                        ) : (
+                          subjectRows.map((s) => (
+                            <div key={s.id} className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-medium">{s.name}</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={12}
+                                value={s.periodsPerWeek}
+                                onChange={(e) => updateSubjectPeriods(s.id, Number(e.target.value))}
+                                className="h-9 w-20 text-center"
+                              />
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
 
                   <button
                     onClick={() => setViewMode('stream')}
