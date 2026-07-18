@@ -26,8 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-
-const ADMIN_EMAIL = "leemwangi250@gmail.com";
+import { isAdminEmail } from "@/lib/adminEmails";
 
 interface UserProfile {
   id: string;
@@ -225,7 +224,7 @@ const AdminUsers = () => {
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center float">
                           <User className="w-8 h-8 text-white" />
                         </div>
-                        {user.email === ADMIN_EMAIL && (
+                        {isAdminEmail(user.email) && (
                           <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
                             <Shield className="w-3 h-3 mr-1" />
                             Admin
@@ -264,7 +263,7 @@ const AdminUsers = () => {
                           size="sm"
                           className="flex-1"
                           onClick={() => openEdit(user)}
-                          disabled={user.email === ADMIN_EMAIL}
+                          disabled={isAdminEmail(user.email)}
                         >
                           <Pencil className="w-4 h-4 mr-2" />
                           Edit
@@ -274,7 +273,7 @@ const AdminUsers = () => {
                           size="sm"
                           className="flex-1"
                           onClick={() => setDeleteId(user.id)}
-                          disabled={user.email === ADMIN_EMAIL}
+                          disabled={isAdminEmail(user.email)}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Delete

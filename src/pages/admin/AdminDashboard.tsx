@@ -4,6 +4,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { isAdminEmail } from "@/lib/adminEmails";
 import {
   Users,
   School,
@@ -106,7 +107,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     const checkAdminAccess = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || user.email !== "leemwangi250@gmail.com") {
+      if (!user || !isAdminEmail(user.email)) {
         toast.error("Unauthorized access to Admin Dashboard");
         navigate("/dashboard");
         return false;

@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { isAdminEmail } from "@/lib/adminEmails";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -36,7 +37,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
         return;
       }
 
-      if (user.email === "leemwangi250@gmail.com") {
+      if (isAdminEmail(user.email)) {
         setAdminEmail(user.email);
         return;
       }

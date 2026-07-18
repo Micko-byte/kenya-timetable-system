@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { isAdminEmail } from "@/lib/adminEmails";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -167,7 +168,7 @@ const Auth = ({ isSignUp = false }: AuthProps) => {
           .eq('role', 'admin')
           .maybeSingle();
         
-        if (formData.email === "leemwangi250@gmail.com") {
+        if (isAdminEmail(formData.email)) {
           navigate("/admin");
         } else {
           navigate("/dashboard");
